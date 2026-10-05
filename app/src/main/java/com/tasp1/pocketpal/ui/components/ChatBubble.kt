@@ -36,13 +36,8 @@ fun ChatBubble(message: ChatMessage, modifier: Modifier = Modifier) {
     }
     val body = parts?.body ?: message.text
     val sources = parts?.sources.orEmpty()
-
     val align = if (message.isUser) Alignment.CenterEnd else Alignment.CenterStart
-    val shape = if (message.isUser) {
-        RoundedCornerShape(18.dp, 18.dp, 4.dp, 18.dp)
-    } else {
-        RoundedCornerShape(0.dp)
-    }
+    val shape = RoundedCornerShape(18.dp, 18.dp, 4.dp, 18.dp)
 
     Box(modifier = modifier.fillMaxWidth(), contentAlignment = align) {
         Column(
@@ -57,19 +52,20 @@ fun ChatBubble(message: ChatMessage, modifier: Modifier = Modifier) {
                 ),
             horizontalAlignment = if (message.isUser) Alignment.End else Alignment.Start,
         ) {
-            SelectionContainer {
+            if (message.isUser) {
                 Text(
                     text = body,
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        fontSize = 16.sp,
-                        lineHeight = 24.sp,
-                        color = MaterialTheme.colorScheme.onBackground,
-                    ),
-                    textAlign = if (message.isUser) TextAlign.End else TextAlign.Start,
+                    style = MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp, lineHeight = 24.sp),
+                    textAlign = TextAlign.End,
+                    color = MaterialTheme.colorScheme.onBackground,
                 )
-            }
-            if (sources.isNotEmpty()) {
-                SourcesCard(sources = sources, modifier = Modifier.padding(top = 8.dp))
+            } else {
+                SelectionContainer {
+                    MarkdownText(markdown = body)
+                }
+                if (sources.isNotEmpty()) {
+                    SourcesCard(sources = sources, modifier = Modifier.padding(top = 8.dp))
+                }
             }
             message.meta?.let {
                 Text(

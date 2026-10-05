@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import com.tasp1.pocketpal.data.AppState
 
 data class PpExtraColors(
     val userBubble: Color,
@@ -67,10 +68,9 @@ private val DarkScheme = darkColorScheme(
 )
 
 @Composable
-fun PocketPalTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    content: @Composable () -> Unit,
-) {
+fun PocketPalTheme(content: @Composable () -> Unit) {
+    val systemDark = isSystemInDarkTheme()
+    val darkTheme = AppState.darkTheme ?: systemDark
     val extra = if (darkTheme) {
         PpExtraColors(
             userBubble = PpDark.UserBubble,

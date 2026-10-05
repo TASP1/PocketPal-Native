@@ -1,34 +1,36 @@
 # PocketPal Native (Jetpack Compose)
 
-**1:1 UI port** of [PocketPal AI](https://github.com/a-ghorbani/pocketpal-ai) screens into **Kotlin + Jetpack Compose**, with TASP1 Kaggle Bridge wired in.
+**1:1 UI port** of [PocketPal AI](https://github.com/a-ghorbani/pocketpal-ai) into **Kotlin + Jetpack Compose**, with TASP1 Kaggle Bridge.
 
-## Matched from upstream
+## Port progress
 
-| RN / PocketPal | Compose |
-|----------------|---------|
-| MD3 light/dark tokens (`theme/tokens/colors.ts`) | `ui/theme/Color.kt` + `Theme.kt` |
-| Drawer routes (`navigationConstants.ts`) | `ui/navigation/Routes.kt` + drawer |
-| Chat header (title + model subtitle) | `ChatTopBar` |
-| User bubble + assistant text | `ChatBubble` |
-| Input bar + **Think** chip | `ChatInputBar` |
-| Models / Settings / Pals / Benchmark / App Info | Matching screens |
+| Area | Status |
+|------|--------|
+| MD3 light/dark tokens | Done |
+| Drawer routes (Chat, Models, Pals, Benchmark, Settings, App Info) | Done |
+| Chat header / bubbles / empty state | Done |
+| Web · Think · Shell chips | Done |
+| Sources cards + tool-protocol strip | Done |
+| Lightweight markdown (bold/italic/code/links) | Done |
+| Models: Bridge + on-device cards | Done (local download later) |
+| Pals grid + filter chips | Done (sheets later) |
+| Settings (server, theme, context, flash attn, haptics) | Done |
+| Benchmark UI presets | Done (engine later) |
+| About / links | Done |
+| Streaming SSE UI | Pending |
+| Local GGUF / llama.cpp | Pending |
+| HF search & download | Pending |
+| Full CommonMark / tables | Pending |
 
-## Bridge (pre-filled in Settings)
+## Bridge defaults
 
 - URL: `https://scrubbed-calcium-subscript.ngrok-free.dev`
-- Key: same `BRIDGE_KEY` as PocketPal remote
+- Key: `BRIDGE_KEY` (Settings)
 
 ## Build
 
+Open in Android Studio or:
+
 ```bash
-cd PocketPalNative
-# Android Studio: Open this folder, Run app
-# or: ./gradlew :app:assembleDebug
+./gradlew :app:assembleDebug
 ```
-
-## Status
-
-**Foundation complete** for visual parity on Chat + shell navigation.  
-Still to port for full 1:1: full ChatView streaming UI, Markdown/premium, Pals hub, local GGUF/llama.rn, Benchmark matrix, HF download, etc.
-
-Upstream UI remains the reference; this repo tracks screen-by-screen parity.
