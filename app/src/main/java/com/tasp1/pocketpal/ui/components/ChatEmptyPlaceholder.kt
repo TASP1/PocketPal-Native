@@ -20,13 +20,10 @@ fun ChatEmptyPlaceholder(modelId: String, modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        Text("PocketPal", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Text(
-            "PocketPal",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-        )
-        Text(
-            "Chat with Kaggle Bridge or on-device models.\nToggle Web · Think · Shell below.",
+            "Chat · Web search · Think · Shell\n" +
+                "Vision HQ · on-device OCR · large attachments (≤40 MB)",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,

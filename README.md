@@ -1,35 +1,40 @@
 # PocketPal Native (Jetpack Compose)
 
-**1:1 UI port** of [PocketPal AI](https://github.com/a-ghorbani/pocketpal-ai) into **Kotlin + Jetpack Compose**, with TASP1 Kaggle Bridge.
+**UI + remote-client port** of [PocketPal AI](https://github.com/a-ghorbani/pocketpal-ai) → Kotlin / Jetpack Compose (TASP1 + Kaggle Bridge).
 
-## Port progress
+## Progress (~25–30% of full rewrite)
 
 | Area | Status |
 |------|--------|
-| MD3 light/dark tokens | Done |
-| Drawer routes (Chat, Models, Pals, Benchmark, Settings, App Info) | Done |
-| Chat header / bubbles / empty state | Done |
-| Web · Think · Shell chips | Done |
-| Sources cards + tool-protocol strip | Done |
-| Lightweight markdown (bold/italic/code/links) | Done |
-| Models: Bridge + on-device cards | Done (local download later) |
-| Pals grid + filter chips | Done (sheets later) |
-| Settings (server, theme, context, flash attn, haptics) | Done |
-| Benchmark UI presets | Done (engine later) |
-| About / links | Done |
-| Streaming SSE UI | Pending |
+| MD3 theme tokens | Done |
+| Drawer navigation (6 routes) | Done |
+| Chat shell (header, chips, empty) | Done |
+| **SSE streaming** + stop generation | Done |
+| Reasoning / Thoughts panel | Done |
+| Sources cards + tool-JSON strip | Done |
+| Markdown subset (bold/italic/code/links) | Done |
+| Image attach + OCR + vision quality | Done |
+| DataStore settings (URL, key, model, theme) | Done |
+| Bridge health + model protocol flags | Done |
+| Models / Pals / Settings / Benchmark / About UI | Partial |
 | Local GGUF / llama.cpp | Pending |
 | HF search & download | Pending |
-| Full CommonMark / tables | Pending |
+| Full sessions DB / multi-chat history | Pending |
+| Full CommonMark tables | Pending |
 
-## Bridge defaults
+## Architecture
 
-- URL: `https://scrubbed-calcium-subscript.ngrok-free.dev`
-- Key: `BRIDGE_KEY` (Settings)
+```
+ui/chat/ChatViewModel  →  network/BridgeClient (SSE)
+                       →  data/AttachmentProcessor (images/OCR)
+                       →  data/SettingsRepository (DataStore)
+protocol/ModelFlags    →  :web :think :shell :effort
+```
 
-## Build
+## Defaults
 
-Open in Android Studio or:
+- Bridge URL / key: `BuildConfig.BRIDGE_*` (overridable in Settings)
+- Open in Android Studio → Run
 
 ```bash
 ./gradlew :app:assembleDebug
