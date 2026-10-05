@@ -1,7 +1,6 @@
 package com.tasp1.pocketpal.ui.screens.chat
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
@@ -30,38 +29,37 @@ import kotlinx.coroutines.launch
 import java.util.UUID
 
 @Composable
-fun ChatScreen(
-    onOpenDrawer: () -> Unit,
-) {
+fun ChatScreen(onOpenDrawer: () -> Unit) {
     val messages = remember { mutableStateListOf<ChatMessage>() }
     var input by remember { mutableStateOf("") }
+    var web by remember { mutableStateOf(true) }
     var think by remember { mutableStateOf(false) }
-    var modelId by remember { mutableStateOf(BridgeConfig.DEFAULT_MODEL + ":web") }
-    var title by remember { mutableStateOf("Hi") }
+    var shell by remember { mutableStateOf(false) }
+    var baseModel by remember { mutableStateOf(BridgeConfig.DEFAULT_MODEL) }
+    var title by remember { mutableStateOf("Hello") }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     val api = remember { BridgeApi() }
     var sending by remember { mutableStateOf(false) }
 
-    LaunchedEffect(messages.size) {
-        if (messages.isNotEmpty()) listState.animateScrollToItem(messages.lastIndex)
+    fun modelId(): String {
+        val flags = buildList {
+            if (web) add("web")
+            if (think) add("think")
+            if (shell) add("shell")
+        }
+        return if (flags.isEmpty()) baseModel else "$baseModel:${flags.joinToString(":")}"
     }
 
-    fun effectiveModel(): String {
-        var m = modelId.substringBefore(":web").substringBefore(":think").substringBefore(":shell")
-            .ifBlank { BridgeConfig.DEFAULT_MODEL }
-        // rebuild flags from UI toggles (Think chip + keep :web for search demo parity)
-        val parts = mutableListOf(m)
-        if (modelId.contains(":web")) parts.add("web")
-        if (think) parts.add("think")
-        return parts.joinToString(":")
+    LaunchedEffect(messages.size) {
+        if (messages.isNotEmpty()) listState.animateScrollToItem(messages.lastIndex)
     }
 
     Scaffold(
         topBar = {
             ChatTopBar(
                 title = title,
-                modelId = modelId,
+                modelId = modelId(),
                 onMenu = onOpenDrawer,
                 onNewChat = {
                     messages.clear()
@@ -74,28 +72,32 @@ fun ChatScreen(
             ChatInputBar(
                 value = input,
                 onValueChange = { input = it },
+                webEnabled = web,
                 thinkEnabled = think,
+                shellEnabled = shell,
+                onToggleWeb = {
+                    web = !web
+                    if (web) shell = false // shell exclusive of web on gateway
+                },
                 onToggleThink = { think = !think },
+                onToggleShell = {
+                    shell = !shell
+                    if (shell) web = false
+                },
                 onSend = {
                     val text = input.trim()
                     if (text.isEmpty() || sending) return@ChatInputBar
                     input = ""
-                    if (title == "New chat" || title == "Hi") title = text.take(40)
+                    if (title == "New chat" || title == "Hello") title = text.take(40)
                     messages.add(ChatMessage(UUID.randomUUID().toString(), text, isUser = true))
                     sending = true
                     scope.launch {
                         val reply = try {
-                            api.chat(effectiveModel(), text)
+                            api.chat(modelId(), text)
                         } catch (e: Exception) {
                             "[Bridge Error] ${e.message}"
                         }
-                        messages.add(
-                            ChatMessage(
-                                id = UUID.randomUUID().toString(),
-                                text = reply,
-                                isUser = false,
-                            ),
-                        )
+                        messages.add(ChatMessage(UUID.randomUUID().toString(), reply, isUser = false))
                         sending = false
                     }
                 },
@@ -105,9 +107,7 @@ fun ChatScreen(
     ) { padding ->
         LazyColumn(
             state = listState,
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
+            modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {

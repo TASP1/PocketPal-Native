@@ -7,16 +7,18 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.tasp1.pocketpal.data.BridgeContent
 import com.tasp1.pocketpal.ui.theme.LocalPpExtra
 
 data class ChatMessage(
@@ -29,7 +31,12 @@ data class ChatMessage(
 @Composable
 fun ChatBubble(message: ChatMessage, modifier: Modifier = Modifier) {
     val extra = LocalPpExtra.current
-    val bg = if (message.isUser) extra.userBubble else MaterialTheme.colorScheme.background
+    val parts = remember(message.text, message.isUser) {
+        if (message.isUser) null else BridgeContent.prepare(message.text)
+    }
+    val body = parts?.body ?: message.text
+    val sources = parts?.sources.orEmpty()
+
     val align = if (message.isUser) Alignment.CenterEnd else Alignment.CenterStart
     val shape = if (message.isUser) {
         RoundedCornerShape(18.dp, 18.dp, 4.dp, 18.dp)
@@ -44,21 +51,26 @@ fun ChatBubble(message: ChatMessage, modifier: Modifier = Modifier) {
                 .then(
                     if (message.isUser) Modifier
                         .clip(shape)
-                        .background(bg)
+                        .background(extra.userBubble)
                         .padding(horizontal = 14.dp, vertical = 10.dp)
                     else Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
                 ),
             horizontalAlignment = if (message.isUser) Alignment.End else Alignment.Start,
         ) {
-            Text(
-                text = message.text,
-                style = MaterialTheme.typography.bodyLarge.copy(
-                    fontSize = 16.sp,
-                    lineHeight = 24.sp,
-                    color = MaterialTheme.colorScheme.onBackground,
-                ),
-                textAlign = if (message.isUser) TextAlign.End else TextAlign.Start,
-            )
+            SelectionContainer {
+                Text(
+                    text = body,
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        fontSize = 16.sp,
+                        lineHeight = 24.sp,
+                        color = MaterialTheme.colorScheme.onBackground,
+                    ),
+                    textAlign = if (message.isUser) TextAlign.End else TextAlign.Start,
+                )
+            }
+            if (sources.isNotEmpty()) {
+                SourcesCard(sources = sources, modifier = Modifier.padding(top = 8.dp))
+            }
             message.meta?.let {
                 Text(
                     text = it,
