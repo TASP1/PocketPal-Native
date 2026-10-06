@@ -9,6 +9,7 @@ import com.tasp1.pocketpal.engine.RemoteOpenAIEngine
 class AppContainer(context: Context) {
     private val appContext = context.applicationContext
     val settings = SettingsRepository(appContext)
+    val sessions = SessionRepository(appContext)
     val attachments = AttachmentProcessor(appContext)
 
     private val defaultProfile = ServerProfile.kaggleBridge(

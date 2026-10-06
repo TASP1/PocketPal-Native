@@ -9,6 +9,7 @@ import com.tasp1.pocketpal.data.AttachmentProcessor
 import com.tasp1.pocketpal.data.BridgeContent
 import com.tasp1.pocketpal.domain.Attachment
 import com.tasp1.pocketpal.domain.ChatTurn
+import com.tasp1.pocketpal.domain.ChatSession
 import com.tasp1.pocketpal.domain.HealthStatus
 import com.tasp1.pocketpal.network.BridgeClient
 import com.tasp1.pocketpal.protocol.ModelFlags
@@ -22,6 +23,7 @@ import kotlinx.coroutines.launch
 import java.util.UUID
 
 data class ChatUiState(
+    val sessionId: String = "",
     val turns: List<ChatTurn> = emptyList(),
     val title: String = "Hello",
     val flags: ModelFlags = ModelFlags(web = true),
@@ -41,8 +43,11 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
     private val _ui = MutableStateFlow(ChatUiState())
     val ui: StateFlow<ChatUiState> = _ui.asStateFlow()
     private var streamJob: Job? = null
+    private var currentSessionId: String = container.sessions.newSessionId()
 
     init {
+        _ui.update { it.copy(sessionId = currentSessionId) }
+
         viewModelScope.launch {
             container.settings.settings.collect { s ->
                 container.applyServer(s.serverUrl, s.apiKey, useLocal = s.useLocal)
@@ -84,8 +89,15 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
 
     fun newChat() {
         streamJob?.cancel()
+        currentSessionId = container.sessions.newSessionId()
         _ui.update {
-            it.copy(turns = emptyList(), title = "New chat", sending = false, pending = emptyList())
+            it.copy(
+                sessionId = currentSessionId,
+                turns = emptyList(),
+                title = "New chat",
+                sending = false,
+                pending = emptyList(),
+            )
         }
     }
 
@@ -295,6 +307,7 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
                                 error = ev.message,
                             )
                             _ui.update { it.copy(sending = false) }
+            persistSession()
                         }
                     }
                 }
@@ -329,6 +342,7 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
         } catch (e: Exception) {
             patchAssistant(asstId, "", "", false, error = e.message)
             _ui.update { it.copy(sending = false) }
+            persistSession()
         }
     }
 
@@ -350,6 +364,40 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
                     ) else it
                 },
             )
+        }
+    }
+
+    private fun persistSession() {
+        val st = _ui.value
+        val id = currentSessionId.ifBlank { container.sessions.newSessionId().also { currentSessionId = it } }
+        val sess = ChatSession(
+            id = id,
+            title = st.title,
+            updatedAt = System.currentTimeMillis(),
+            modelId = modelId(),
+        )
+        viewModelScope.launch {
+            runCatching { container.sessions.save(sess, st.turns.filter { !it.isStreaming }) }
+        }
+    }
+
+    fun loadSession(id: String) {
+        streamJob?.cancel()
+        viewModelScope.launch {
+            val payload = container.sessions.load(id) ?: return@launch
+            currentSessionId = id
+            val turns = payload.turns.map { t ->
+                ChatTurn(
+                    id = t.id,
+                    role = if (t.role == "user") ChatTurn.Role.User else ChatTurn.Role.Assistant,
+                    content = t.content,
+                    reasoning = t.reasoning,
+                    sourcesJson = t.sourcesJson,
+                )
+            }
+            _ui.update {
+                it.copy(sessionId = id, turns = turns, title = payload.session.title, sending = false)
+            }
         }
     }
 

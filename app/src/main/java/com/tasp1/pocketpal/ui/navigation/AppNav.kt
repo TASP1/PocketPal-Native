@@ -1,3 +1,6 @@
+import com.tasp1.pocketpal.PocketPalApp
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.collectAsState
 package com.tasp1.pocketpal.ui.navigation
 
 import androidx.compose.foundation.clickable
@@ -69,6 +72,8 @@ fun PocketPalApp() {
     val nav = rememberNavController()
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+    val app = LocalContext.current.applicationContext as PocketPalApp
+    val sessions by app.container.sessions.sessions.collectAsState(initial = emptyList())
     val backStack by nav.currentBackStackEntryAsState()
     val current = backStack?.destination?.route ?: Routes.CHAT
 
@@ -115,20 +120,29 @@ fun PocketPalApp() {
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
                     )
-                    listOf(
-                        "Kaggle PocketPal bridge API setup",
-                        "CLI MCP terminal usage",
-                        "Cross-platform media engine",
-                    ).forEach { title ->
+                    if (sessions.isEmpty()) {
                         Text(
-                            title,
+                            "No chats yet",
                             style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { go(Routes.CHAT); scope.launch { drawerState.close() } }
-                                .padding(horizontal = 24.dp, vertical = 12.dp),
-                            maxLines = 1,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
                         )
+                    } else {
+                        sessions.take(12).forEach { s ->
+                            Text(
+                                s.title,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        go(Routes.CHAT)
+                                        // load via saved state handle later — emit event
+                                        scope.launch { drawerState.close() }
+                                    }
+                                    .padding(horizontal = 24.dp, vertical = 12.dp),
+                                maxLines = 1,
+                            )
+                        }
                     }
                     HorizontalDivider(Modifier.padding(vertical = 12.dp, horizontal = 16.dp))
                     secondary.forEach { item ->

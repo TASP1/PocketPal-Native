@@ -134,6 +134,8 @@ fun ChatScreen(onOpenDrawer: () -> Unit) {
                 onToggleOcr = { vm.setAutoOcr(!state.autoOcr) },
                 onSend = vm::send,
                 onStop = vm::stopGeneration,
+                modelLabel = state.baseModel,
+                onModelClick = { showModels = true },
                 sending = state.sending,
                 modifier = Modifier.imePadding(),
             )

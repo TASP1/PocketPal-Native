@@ -76,6 +76,8 @@ fun ChatInputBar(
     onValueChange: (String) -> Unit,
     onSend: () -> Unit,
     onStop: () -> Unit = {},
+    modelLabel: String = "",
+    onModelClick: () -> Unit = {},
     sending: Boolean = false,
     webEnabled: Boolean,
     thinkEnabled: Boolean,
@@ -237,6 +239,19 @@ fun ChatInputBar(
                     "Think",
                     fontSize = 13.sp,
                     color = if (thinkEnabled) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (modelLabel.isNotBlank()) {
+                Text(
+                    modelLabel.substringAfterLast('/').take(22),
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .clickable(onClick = onModelClick)
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
                 )
             }
             TextField(
