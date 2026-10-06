@@ -189,6 +189,15 @@ fun SettingsScreen(onOpenDrawer: () -> Unit) {
             }
 
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            SectionTitle("Agent shell")
+            Text(
+                "Type \$ ls or /shell ls in chat to run on the bridge. " +
+                    "Enable Shell chip to prefer the Render agent host. " +
+                    "Bridge URL/key above are used for auth.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 12.dp),
+            )
             SectionTitle("Native capabilities")
             Text(
                 "• Vision + OCR (ML Kit) on image attach\n" +

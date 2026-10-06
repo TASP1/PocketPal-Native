@@ -165,7 +165,7 @@ fun ChatInputBar(
                         maxLines = 1,
                     )
                 }
-                SpacerWeight()
+                androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
                 IconButton(onClick = {}) {
                     Icon(
                         Icons.Outlined.Mic,
@@ -213,7 +213,7 @@ fun ChatInputBar(
 }
 
 @Composable
-private fun SpacerWeight() {
+private fun androidx.compose.foundation.layout.Spacer(Modifier.weight(1f)) {
     androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
 }
 

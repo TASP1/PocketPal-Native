@@ -146,6 +146,13 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
         val text = state.input.trim()
         val pending = state.pending
         if ((text.isEmpty() && pending.isEmpty()) || state.sending) return
+        // Agent shortcuts: `$ cmd` or `/shell cmd` → native shell endpoint
+        if (pending.isEmpty() && (text.startsWith("$ ") || text.startsWith("/shell "))) {
+            val cmd = text.removePrefix("$ ").removePrefix("/shell ").trim()
+            _ui.update { it.copy(input = "") }
+            runShell(cmd, useRenderAgent = state.flags.shell)
+            return
+        }
 
         streamJob?.cancel()
         val userId = UUID.randomUUID().toString()
@@ -398,6 +405,79 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
             _ui.update {
                 it.copy(sessionId = id, turns = turns, title = payload.session.title, sending = false)
             }
+        }
+    }
+
+    
+    /**
+     * Native agent: run a shell command on the bridge / Render agent host.
+     * Results are appended as an assistant tool step + body.
+     */
+    fun runShell(command: String, useRenderAgent: Boolean = false) {
+        val cmd = command.trim()
+        if (cmd.isEmpty() || _ui.value.sending) return
+        val asstId = java.util.UUID.randomUUID().toString()
+        val userId = java.util.UUID.randomUUID().toString()
+        val userTurn = ChatTurn(id = userId, role = ChatTurn.Role.User, content = "$ " + cmd)
+        val asstTurn = ChatTurn(
+            id = asstId,
+            role = ChatTurn.Role.Assistant,
+            content = "",
+            isStreaming = true,
+            toolSteps = listOf(
+                com.tasp1.pocketpal.domain.ToolStep(
+                    id = java.util.UUID.randomUUID().toString(),
+                    title = "Run shell: ${cmd.take(48)}",
+                    kind = com.tasp1.pocketpal.domain.ToolStep.Kind.Shell,
+                    request = cmd,
+                    done = false,
+                ),
+            ),
+        )
+        _ui.update {
+            it.copy(
+                turns = it.turns + userTurn + asstTurn,
+                sending = true,
+                title = if (it.title == "Hello" || it.title == "New chat") cmd.take(40) else it.title,
+            )
+        }
+        viewModelScope.launch {
+            val client = if (useRenderAgent) container.renderAgent else container.shell
+            val result = runCatching { client.exec(cmd) }.getOrElse {
+                com.tasp1.pocketpal.network.AgentShellClient.ShellResult(
+                    ok = false, stdout = "", stderr = it.message ?: "shell failed",
+                )
+            }
+            val body = buildString {
+                if (result.stdout.isNotBlank()) append(result.stdout)
+                if (result.stderr.isNotBlank()) {
+                    if (isNotEmpty()) append("\n")
+                    append(result.stderr)
+                }
+                if (isEmpty()) append("(no output)")
+            }
+            val step = com.tasp1.pocketpal.domain.ToolStep(
+                id = java.util.UUID.randomUUID().toString(),
+                title = if (result.ok) "Shell ok" else "Shell error",
+                kind = com.tasp1.pocketpal.domain.ToolStep.Kind.Shell,
+                request = cmd,
+                response = body.take(8000),
+                done = true,
+            )
+            _ui.update { st ->
+                st.copy(
+                    sending = false,
+                    turns = st.turns.map {
+                        if (it.id == asstId) it.copy(
+                            content = "```shell\n$body\n```",
+                            isStreaming = false,
+                            toolSteps = listOf(step),
+                            error = if (!result.ok) result.stderr.ifBlank { "exit ${result.exitCode}" } else null,
+                        ) else it
+                    },
+                )
+            }
+            persistSession()
         }
     }
 
