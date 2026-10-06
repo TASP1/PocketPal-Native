@@ -26,17 +26,18 @@ import androidx.compose.ui.unit.sp
 import com.tasp1.pocketpal.data.BridgeSource
 
 @Composable
-fun SourcesCard(sources: List<BridgeSource>, modifier: Modifier = Modifier) {
+fun SourcesCard(
+    sources: List<BridgeSource>,
+    modifier: Modifier = Modifier,
+) {
     if (sources.isEmpty()) return
     val ctx = LocalContext.current
-    val shape = RoundedCornerShape(14.dp)
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(shape)
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-            .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, shape)
-            .padding(10.dp),
+            .clip(RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
+            .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(
@@ -77,7 +78,7 @@ fun SourcesCard(sources: List<BridgeSource>, modifier: Modifier = Modifier) {
                         color = MaterialTheme.colorScheme.onSecondaryContainer,
                     )
                 }
-                Column(Modifier = Modifier.weight(1f)) {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         s.title,
                         style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),

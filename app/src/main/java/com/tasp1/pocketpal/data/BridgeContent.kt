@@ -1,8 +1,7 @@
 package com.tasp1.pocketpal.data
 
 /**
- * Mirrors RN src/utils/bridgeContent.ts —
- * strip tool protocol noise + lift Sources into structured cards.
+ * Mirrors RN bridgeContent — strip tool protocol noise + lift Sources into cards.
  */
 data class BridgeSource(val index: Int, val title: String, val url: String)
 
