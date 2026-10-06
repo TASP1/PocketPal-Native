@@ -37,12 +37,7 @@ class AttachmentProcessor(private val context: Context) {
         if (size > Attachment.HARD_LIMIT_BYTES) {
             error("File too large (${size / 1_000_000} MB). Max ${Attachment.HARD_LIMIT_BYTES / 1_000_000} MB.")
         }
-        val kind = when {
-            mime.startsWith("image/") -> Attachment.Kind.Image
-            mime == "application/pdf" -> Attachment.Kind.Pdf
-            mime.startsWith("text/") -> Attachment.Kind.Text
-            else -> Attachment.Kind.Other
-        }
+        val kind = classify(mime, name)
 
         var dataUrl: String? = null
         var width: Int? = null
@@ -75,11 +70,18 @@ class AttachmentProcessor(private val context: Context) {
                 // already recycled bmp if different; scaled still needed until OCR done
             }
             scaled.recycle()
-        } else if (kind == Attachment.Kind.Text || mime == "application/json") {
+        } else if (
+            kind == Attachment.Kind.Text || kind == Attachment.Kind.Code ||
+            kind == Attachment.Kind.Spreadsheet || mime == "application/json"
+        ) {
             cr.openInputStream(uri)?.use { ins ->
-                ocr = ins.readBytes().toString(Charsets.UTF_8).take(200_000)
+                val text = ins.readBytes().toString(Charsets.UTF_8)
+                ocr = text.take(200_000)
             }
         }
+
+        val textPreview = ocr?.take(Attachment.TEXT_PREVIEW_CHARS)
+            ?.takeIf { kind == Attachment.Kind.Text || kind == Attachment.Kind.Code || kind == Attachment.Kind.Spreadsheet }
 
         Attachment(
             id = UUID.randomUUID().toString(),
@@ -92,6 +94,7 @@ class AttachmentProcessor(private val context: Context) {
             ocrText = ocr,
             width = width,
             height = height,
+            textPreview = textPreview,
         )
     }
 
@@ -110,6 +113,29 @@ class AttachmentProcessor(private val context: Context) {
             context.contentResolver.openInputStream(uri)?.use { size = it.available().toLong() }
         }
         return name to size
+    }
+
+    
+    private fun classify(mime: String, name: String): Attachment.Kind {
+        val lower = name.lowercase()
+        return when {
+            mime.startsWith("image/") -> Attachment.Kind.Image
+            mime == "application/pdf" || lower.endsWith(".pdf") -> Attachment.Kind.Pdf
+            mime.startsWith("audio/") -> Attachment.Kind.Audio
+            mime.startsWith("video/") -> Attachment.Kind.Video
+            mime.contains("sheet") || lower.endsWith(".csv") || lower.endsWith(".xlsx") || lower.endsWith(".xls") ->
+                Attachment.Kind.Spreadsheet
+            mime.contains("zip") || mime.contains("gzip") || lower.endsWith(".zip") || lower.endsWith(".rar") ->
+                Attachment.Kind.Archive
+            mime.startsWith("text/") || lower.endsWith(".md") || lower.endsWith(".json") ||
+                lower.endsWith(".kt") || lower.endsWith(".py") || lower.endsWith(".js") ||
+                lower.endsWith(".ts") || lower.endsWith(".java") || lower.endsWith(".xml") ||
+                lower.endsWith(".html") || lower.endsWith(".css") || lower.endsWith(".sql") ->
+                if (lower.substringAfterLast('.').length <= 5 && !mime.startsWith("text/") &&
+                    listOf("kt","py","js","ts","java","xml","html","css","sql","json","md").any { lower.endsWith(".$it") }
+                ) Attachment.Kind.Code else Attachment.Kind.Text
+            else -> Attachment.Kind.Other
+        }
     }
 
     private fun decodeBitmap(uri: Uri): Bitmap {

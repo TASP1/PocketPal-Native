@@ -10,7 +10,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -33,8 +32,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.tasp1.pocketpal.BuildConfig
 import com.tasp1.pocketpal.PocketPalApp
+import com.tasp1.pocketpal.data.UserSettings
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -42,19 +41,33 @@ import kotlinx.coroutines.launch
 @Composable
 fun SettingsScreen(onOpenDrawer: () -> Unit) {
     val app = LocalContext.current.applicationContext as PocketPalApp
+    val container = app.container
     val scope = rememberCoroutineScope()
-    var url by remember { mutableStateOf(BuildConfig.BRIDGE_URL) }
-    var key by remember { mutableStateOf(BuildConfig.BRIDGE_KEY) }
+    var url by remember { mutableStateOf("") }
+    var key by remember { mutableStateOf("") }
     var theme by remember { mutableStateOf("system") }
     var haptics by remember { mutableStateOf(true) }
-    var healthLine by remember { mutableStateOf("") }
+    var useLocal by remember { mutableStateOf(false) }
+    var secondaryUrl by remember { mutableStateOf("") }
+    var secondaryKey by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
-        val s = app.container.settings.settings.first()
+        val s: UserSettings = container.settings.settings.first()
         url = s.serverUrl
         key = s.apiKey
         theme = s.theme
         haptics = s.haptics
+        useLocal = s.useLocal
+    }
+
+    fun persist() {
+        scope.launch {
+            container.settings.setServer(url, key)
+            container.settings.setTheme(theme)
+            container.settings.setHaptics(haptics)
+            container.settings.setUseLocal(useLocal)
+            container.applyServer(url, key, useLocal)
+        }
     }
 
     Scaffold(
@@ -70,65 +83,132 @@ fun SettingsScreen(onOpenDrawer: () -> Unit) {
         },
     ) { padding ->
         Column(
-            Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
+            Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
         ) {
-            Text("Kaggle Bridge", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            Text("Keys are pre-wired from BuildConfig; edit to override.", style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 8.dp))
-            OutlinedTextField(url, { url = it }, label = { Text("Server URL") }, modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp), singleLine = true)
-            OutlinedTextField(key, { key = it }, label = { Text("API key (BRIDGE_KEY)") }, modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp), singleLine = true)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = {
-                    scope.launch {
-                        app.container.settings.setServer(url, key)
-                        app.container.bridge.updateCredentials(url, key)
-                        healthLine = runCatching {
-                            val h = app.container.bridge.health()
-                            "ok=${h.ok} backend=${h.backendConnected} caps=${h.caps}"
-                        }.getOrElse { it.message ?: "error" }
-                    }
-                }) { Text("Save & ping") }
-                Button(onClick = {
-                    url = BuildConfig.BRIDGE_URL
-                    key = BuildConfig.BRIDGE_KEY
-                }) { Text("Reset defaults") }
+            SectionTitle("Active backend")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 8.dp)) {
+                FilterChip(
+                    selected = !useLocal,
+                    onClick = { useLocal = false; persist() },
+                    label = { Text("Remote") },
+                )
+                FilterChip(
+                    selected = useLocal,
+                    onClick = { useLocal = true; persist() },
+                    label = { Text("On-device GGUF") },
+                )
             }
-            if (healthLine.isNotBlank()) {
-                Text(healthLine, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
+            if (useLocal) {
+                Text(
+                    "Local engine architecture is ready. Link llama.cpp / ExecuTorch in a later build to run GGUF files offline.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 12.dp),
+                )
             }
 
-            HorizontalDivider(Modifier.padding(vertical = 16.dp))
-            Text("Appearance", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 8.dp)) {
-                listOf("system", "light", "dark").forEach { t ->
-                    FilterChip(selected = theme == t, onClick = {
-                        theme = t
-                        scope.launch { app.container.settings.setTheme(t) }
-                    }, label = { Text(t.replaceFirstChar { it.uppercase() }) })
-                }
-            }
-            Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                Column {
-                    Text("Haptic feedback")
-                    Text("Vibrate on actions", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Switch(checked = haptics, onCheckedChange = {
-                    haptics = it
-                    scope.launch { app.container.settings.setHaptics(it) }
-                })
-            }
-
-            HorizontalDivider(Modifier.padding(vertical = 16.dp))
-            Text("Architecture", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            SectionTitle("Primary server (Kaggle Bridge / OpenAI-compatible)")
             Text(
-                "• OpenAI-compatible protocol (/v1/chat/completions + SSE)\n" +
-                    "• Model flags: :web :think :shell :low|:medium|:high\n" +
-                    "• BridgeClient + ChatViewModel streaming pipeline\n" +
-                    "• DataStore-backed credentials (defaults = live keys)\n" +
-                    "• Caps: stream, native_reasoning",
+                "Native key is pre-filled from BuildConfig. URL without trailing /v1.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 8.dp),
+            )
+            OutlinedTextField(
+                value = url,
+                onValueChange = { url = it; persist() },
+                label = { Text("Server URL") },
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                singleLine = true,
+            )
+            OutlinedTextField(
+                value = key,
+                onValueChange = { key = it; persist() },
+                label = { Text("API key") },
+                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                singleLine = true,
+            )
+
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            SectionTitle("Secondary OpenAI-compatible (optional)")
+            Text(
+                "e.g. OpenRouter, Groq, local LM Studio — switch by pasting URL/key into primary fields when needed.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 8.dp),
+            )
+            OutlinedTextField(
+                value = secondaryUrl,
+                onValueChange = { secondaryUrl = it },
+                label = { Text("Alt server URL") },
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                singleLine = true,
+            )
+            OutlinedTextField(
+                value = secondaryKey,
+                onValueChange = { secondaryKey = it },
+                label = { Text("Alt API key") },
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                singleLine = true,
+            )
+            androidx.compose.material3.TextButton(
+                onClick = {
+                    if (secondaryUrl.isNotBlank()) {
+                        url = secondaryUrl.trimEnd('/')
+                        key = secondaryKey
+                        useLocal = false
+                        persist()
+                    }
+                },
+            ) { Text("Use alt as primary") }
+
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            SectionTitle("Appearance")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("system" to "System", "light" to "Light", "dark" to "Dark").forEach { (v, label) ->
+                    FilterChip(
+                        selected = theme == v,
+                        onClick = { theme = v; persist() },
+                        label = { Text(label) },
+                    )
+                }
+            }
+
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            SectionTitle("Feedback")
+            Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                Column(Modifier.weight(1f)) {
+                    Text("Haptic feedback", style = MaterialTheme.typography.bodyLarge)
+                    Text("Vibrate on send", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Switch(checked = haptics, onCheckedChange = { haptics = it; persist() })
+            }
+
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            SectionTitle("Native capabilities")
+            Text(
+                "• Vision + OCR (ML Kit) on image attach\n" +
+                    "• Large files up to 50 MB (text/PDF/code previews)\n" +
+                    "• SSE streaming + stop + Thoughts panel (Claude-style)\n" +
+                    "• Multi-server: Bridge / OpenAI-compatible / local shell\n" +
+                    "• Model flags: :web :think :shell :effort",
                 style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(top = 8.dp),
+                modifier = Modifier.padding(top = 4.dp),
             )
         }
     }
+}
+
+@Composable
+private fun SectionTitle(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier.padding(bottom = 4.dp, top = 4.dp),
+    )
 }

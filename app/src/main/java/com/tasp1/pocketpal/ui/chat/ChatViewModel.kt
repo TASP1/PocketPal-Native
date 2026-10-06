@@ -45,7 +45,7 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
     init {
         viewModelScope.launch {
             container.settings.settings.collect { s ->
-                container.bridge.updateCredentials(s.serverUrl, s.apiKey)
+                container.applyServer(s.serverUrl, s.apiKey, useLocal = s.useLocal)
                 _ui.update { it.copy(baseModel = s.baseModel) }
             }
         }
@@ -54,7 +54,7 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
 
     fun refreshHealth() {
         viewModelScope.launch {
-            val h = runCatching { container.bridge.health() }.getOrNull()
+            val h = runCatching { container.engines.active.health() }.getOrNull()
             _ui.update { it.copy(health = h) }
         }
     }
@@ -240,7 +240,7 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
         val content = StringBuilder()
         val reasoning = StringBuilder()
         try {
-            container.bridge.chatStreamVision(model, history).collect { ev ->
+            container.engines.active.stream(model, history).collect { ev ->
                 when (ev) {
                     is StreamEvent.ContentDelta -> {
                         content.append(ev.text)
@@ -300,7 +300,7 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
         asstId: String,
     ) {
         try {
-            val raw = container.bridge.chatOnceVision(model, history)
+            val raw = container.engines.active.complete(model, history)
             val parts = BridgeContent.prepare(raw)
             _ui.update { st ->
                 st.copy(

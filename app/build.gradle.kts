@@ -12,8 +12,8 @@ android {
         applicationId = "com.tasp1.pocketpal"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "1.2.0-compose"
+        versionCode = 4
+        versionName = "1.3.0-compose"
         buildConfigField("String", "BRIDGE_URL", "\"https://scrubbed-calcium-subscript.ngrok-free.dev\"")
         buildConfigField("String", "BRIDGE_KEY", "\"28f53fa45b3c222cc2b1cac6795b6ae1\"")
     }

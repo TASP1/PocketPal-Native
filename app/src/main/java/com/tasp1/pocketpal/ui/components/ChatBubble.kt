@@ -1,3 +1,4 @@
+import com.tasp1.pocketpal.ui.components.claude.ThinkingBlock
 package com.tasp1.pocketpal.ui.components
 
 import androidx.compose.foundation.background
@@ -95,28 +96,11 @@ fun ChatBubble(turn: ChatTurn, modifier: Modifier = Modifier) {
                 )
             }
             if (turn.reasoning.isNotBlank() && !isUser) {
-                Column(
-                    modifier = Modifier
-                        .padding(bottom = 8.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
-                        .padding(10.dp),
-                ) {
-                    Text(
-                        if (turn.isStreaming && turn.content.isBlank()) "Thinking…" else "Thoughts",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.secondary,
-                        modifier = Modifier.padding(bottom = 4.dp),
-                    )
-                    Text(
-                        turn.reasoning,
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 13.sp,
-                            lineHeight = 18.sp,
-                        ),
-                    )
-                }
+                ThinkingBlock(
+                    text = turn.reasoning,
+                    streaming = turn.isStreaming && turn.content.isBlank(),
+                    modifier = Modifier.padding(bottom = 8.dp),
+                )
             }
             if (body.isNotBlank()) {
                 if (isUser) {

@@ -1,40 +1,39 @@
 # PocketPal Native (Jetpack Compose)
 
-**UI + remote-client port** of [PocketPal AI](https://github.com/a-ghorbani/pocketpal-ai) → Kotlin / Jetpack Compose (TASP1 + Kaggle Bridge).
+Compose port of PocketPal AI + **TASP1 Kaggle Bridge**, upgraded toward Claude-style chat chrome and multi-backend engines.
 
-## Progress (~25–30% of full rewrite)
+## ~30–35% of full rewrite
 
-| Area | Status |
-|------|--------|
-| MD3 theme tokens | Done |
-| Drawer navigation (6 routes) | Done |
-| Chat shell (header, chips, empty) | Done |
-| **SSE streaming** + stop generation | Done |
-| Reasoning / Thoughts panel | Done |
-| Sources cards + tool-JSON strip | Done |
-| Markdown subset (bold/italic/code/links) | Done |
-| Image attach + OCR + vision quality | Done |
-| DataStore settings (URL, key, model, theme) | Done |
-| Bridge health + model protocol flags | Done |
-| Models / Pals / Settings / Benchmark / About UI | Partial |
-| Local GGUF / llama.cpp | Pending |
-| HF search & download | Pending |
-| Full sessions DB / multi-chat history | Pending |
-| Full CommonMark tables | Pending |
-
-## Architecture
+### Architecture (v1.3)
 
 ```
-ui/chat/ChatViewModel  →  network/BridgeClient (SSE)
-                       →  data/AttachmentProcessor (images/OCR)
-                       →  data/SettingsRepository (DataStore)
-protocol/ModelFlags    →  :web :think :shell :effort
+ChatViewModel
+    → EngineRouter
+         → RemoteOpenAIEngine (Kaggle Bridge / any OpenAI-compatible)
+         → LocalGgufEngine (shell ready for llama.cpp)
+    → AttachmentProcessor (vision resize, ML Kit OCR, text/code previews, 50MB)
+    → SettingsRepository (DataStore: URL, key, theme, useLocal)
 ```
 
-## Defaults
+### Native features
 
-- Bridge URL / key: `BuildConfig.BRIDGE_*` (overridable in Settings)
-- Open in Android Studio → Run
+| Feature | Status |
+|---------|--------|
+| Pre-wired Bridge URL + API key | BuildConfig + Settings |
+| Multi remote servers | Primary + alt OpenAI-compatible |
+| Image vision + on-device OCR | ML Kit + JPEG long-edge quality |
+| Attachments (image/pdf/text/code/sheet/audio/video) | Kind classify + previews |
+| SSE stream + stop | Done |
+| Claude-style Thoughts panel | Collapsible ThinkingBlock |
+| Artifact-style code card component | ArtifactCard |
+| Local GGUF path | Engine interface (runtime link pending) |
+| Model flags :web :think :shell | Protocol |
+
+### Claude UI notes (2026)
+
+Claude unified chat + Cowork + Artifacts; thinking blocks; docs/slides/design from the prompt bar. We mirror **Thoughts collapse**, **artifact code panels**, and clean attachment chips — not a pixel clone of Claude.
+
+### Build
 
 ```bash
 ./gradlew :app:assembleDebug
