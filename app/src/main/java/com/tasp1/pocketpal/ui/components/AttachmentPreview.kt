@@ -2,15 +2,15 @@ package com.tasp1.pocketpal.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AudioFile
@@ -71,7 +71,7 @@ fun AttachmentPreviewChip(
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        when (attachment.kind) {
+                        imageVector = when (attachment.kind) {
                             Attachment.Kind.Pdf -> Icons.Default.PictureAsPdf
                             Attachment.Kind.Code -> Icons.Default.Code
                             Attachment.Kind.Spreadsheet -> Icons.Default.TableChart
@@ -86,7 +86,11 @@ fun AttachmentPreviewChip(
                 }
             }
         }
-        Column(Modifier = Modifier.padding(horizontal = 8.dp).weight(1f, fill = false).width(120.dp)) {
+        Column(
+            modifier = Modifier
+                .padding(horizontal = 8.dp)
+                .width(120.dp),
+        ) {
             Text(
                 attachment.displayName,
                 maxLines = 1,
@@ -103,8 +107,8 @@ fun AttachmentPreviewChip(
                 Text("OCR ready", fontSize = 10.sp, color = MaterialTheme.colorScheme.secondary)
             }
         }
-        onRemove?.let {
-            IconButton(onClick = it, modifier = Modifier.size(28.dp)) {
+        if (onRemove != null) {
+            IconButton(onClick = onRemove, modifier = Modifier.size(28.dp)) {
                 Icon(Icons.Default.Close, contentDescription = "Remove", modifier = Modifier.size(16.dp))
             }
         }
@@ -118,7 +122,12 @@ fun AttachmentPreviewList(
     modifier: Modifier = Modifier,
 ) {
     if (items.isEmpty()) return
-    Row(modifier = modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 12.dp, vertical = 4.dp),
+    ) {
         items.forEach { a ->
             AttachmentPreviewChip(
                 attachment = a,

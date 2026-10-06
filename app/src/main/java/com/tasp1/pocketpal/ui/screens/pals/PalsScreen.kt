@@ -37,19 +37,29 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.tasp1.pocketpal.data.AppState
+
+private data class PalItem(val id: String, val name: String, val description: String, val category: String)
+
+private val Pals = listOf(
+    PalItem("assistant", "Helpful Assistant", "General-purpose helper", "assistant"),
+    PalItem("coder", "Code Companion", "Explains and writes code", "assistant"),
+    PalItem("writer", "Writing Partner", "Drafts and edits prose", "assistant"),
+    PalItem("rpg", "Dungeon Master", "Interactive fantasy roleplay", "roleplay"),
+    PalItem("teacher", "Patient Tutor", "Teaches step by step", "assistant"),
+    PalItem("local", "On-device Pal", "Works with local GGUF models", "local"),
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PalsScreen(onOpenDrawer: () -> Unit) {
     var filter by remember { mutableStateOf("all") }
-    val filters = listOf("all", "assistant", "roleplay", "local", "video")
-    val shown = AppState.pals.filter { filter == "all" || it.category == filter }
+    val filters = listOf("all", "assistant", "roleplay", "local")
+    val shown = Pals.filter { filter == "all" || it.category == filter }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Pals (experimental)", fontWeight = FontWeight.SemiBold) },
+                title = { Text("Projects / Pals", fontWeight = FontWeight.SemiBold) },
                 navigationIcon = {
                     IconButton(onClick = onOpenDrawer) {
                         Icon(Icons.Default.Menu, contentDescription = "Menu")
@@ -63,8 +73,8 @@ fun PalsScreen(onOpenDrawer: () -> Unit) {
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { /* add pal */ }) {
-                Icon(Icons.Default.Add, contentDescription = "Add pal")
+            FloatingActionButton(onClick = {}) {
+                Icon(Icons.Default.Add, contentDescription = "Add")
             }
         },
     ) { padding ->
@@ -77,7 +87,7 @@ fun PalsScreen(onOpenDrawer: () -> Unit) {
                     FilterChip(
                         selected = filter == f,
                         onClick = { filter = f },
-                        label = { Text(f.replaceFirstChar { it.uppercase() }) },
+                        label = { Text(f.replaceFirstChar { c -> c.uppercase() }) },
                     )
                 }
             }
@@ -93,10 +103,10 @@ fun PalsScreen(onOpenDrawer: () -> Unit) {
                         modifier = Modifier
                             .fillMaxWidth()
                             .aspectRatio(1f)
-                            .clickable { /* open pal sheet */ },
+                            .clickable { },
                         shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                        elevation = CardDefaults.cardElevation(0.dp),
                     ) {
                         Column(Modifier.padding(14.dp).fillMaxSize()) {
                             Text(

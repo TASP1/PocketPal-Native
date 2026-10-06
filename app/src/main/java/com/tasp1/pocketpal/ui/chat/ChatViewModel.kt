@@ -257,6 +257,9 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
                         reasoning.append(ev.text)
                         patchAssistant(asstId, content.toString(), reasoning.toString(), true)
                     }
+                    is StreamEvent.SearchProgress -> {
+                        // surface as transient tool step title later
+                    }
                     is StreamEvent.Done -> {
                         val parts = BridgeContent.prepare(content.toString())
                         val body = parts.body
