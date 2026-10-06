@@ -36,6 +36,10 @@ import com.tasp1.pocketpal.ui.components.ChatTopBar
 import com.tasp1.pocketpal.ui.components.sheets.AddToChatSheet
 import com.tasp1.pocketpal.ui.components.sheets.ModelOption
 import com.tasp1.pocketpal.ui.components.sheets.ModelPickerSheet
+import com.tasp1.pocketpal.ui.components.claude.ScrollToBottomFab
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 
@@ -47,6 +51,18 @@ fun ChatScreen(onOpenDrawer: () -> Unit) {
     val listState = rememberLazyListState()
     val snack = remember { SnackbarHostState() }
     var showModels by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val showScrollFab by remember {
+        derivedStateOf {
+            val info = listState.layoutInfo
+            val total = info.totalItemsCount
+            if (total == 0) false
+            else {
+                val last = info.visibleItemsInfo.lastOrNull()?.index ?: 0
+                last < total - 1
+            }
+        }
+    }
     var showAdd by remember { mutableStateOf(false) }
 
     // Multi image (Photo Picker — no storage permission on modern Android)
@@ -156,6 +172,7 @@ fun ChatScreen(onOpenDrawer: () -> Unit) {
             ),
             selectedId = state.baseModel,
             onSelect = { id ->
+                vm.setBaseModel(id)
                 showModels = false
             },
             onDismiss = { showModels = false },

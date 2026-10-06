@@ -4,12 +4,6 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      runner:
-        description: Runner
-        type: choice
-        options: [ubuntu-24.04, blacksmith-8vcpu-ubuntu-2404]
-        default: ubuntu-24.04
 
 concurrency:
   group: compose-apk-${{ github.ref }}
@@ -18,8 +12,10 @@ concurrency:
 jobs:
   build:
     name: Assemble debug APK
-    runs-on: ${{ github.event.inputs.runner || 'ubuntu-24.04' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
     steps:
       - uses: actions/checkout@v4
 
@@ -29,19 +25,28 @@ jobs:
           java-version: "17"
           cache: gradle
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Accept licenses
-        run: yes | sdkmanager --licenses || true
+      - name: Install Android SDK packages
+        run: |
+          set -e
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
+          # fallback path used on some images
+          SM=""
+          for c in \
+            "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "$ANDROID_HOME/cmdline-tools/bin/sdkmanager" \
+            $(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | head -1); do
+            [ -x "$c" ] && SM="$c" && break
+          done
+          echo "sdkmanager=$SM"
+          if [ -n "$SM" ]; then
+            yes | "$SM" --licenses >/dev/null || true
+            "$SM" "platforms;android-35" "build-tools;35.0.0" "platform-tools" || true
+          fi
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          ls -la "$ANDROID_HOME" || true
 
       - name: Make gradlew executable
-        run: |
-          if [ -f gradlew ]; then chmod +x gradlew
-          else
-            gradle wrapper --gradle-version 8.9
-            chmod +x gradlew
-          fi
+        run: chmod +x gradlew
 
       - name: Assemble debug
         run: ./gradlew :app:assembleDebug --no-daemon --stacktrace

@@ -89,6 +89,13 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
+    fun setBaseModel(id: String) {
+        viewModelScope.launch {
+            container.settings.setBaseModel(id)
+            _ui.update { it.copy(baseModel = id) }
+        }
+    }
+
     fun modelId(): String = _ui.value.flags.toModelId(_ui.value.baseModel)
 
     fun addAttachments(uris: List<Uri>) {
