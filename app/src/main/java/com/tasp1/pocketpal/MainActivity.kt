@@ -9,10 +9,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import com.tasp1.pocketpal.ui.navigation.PocketPalApp
+import com.tasp1.pocketpal.ui.navigation.PocketPalRoot
 import com.tasp1.pocketpal.ui.theme.PocketPalTheme
 import kotlinx.coroutines.flow.map
 
@@ -21,7 +20,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            val app = LocalContext.current.applicationContext as com.tasp1.pocketpal.PocketPalApp
+            val app = LocalContext.current.applicationContext as PocketPalApp
             val themeMode by app.container.settings.settings
                 .map { it.theme }
                 .collectAsState(initial = "system")
@@ -33,7 +32,7 @@ class MainActivity : ComponentActivity() {
             }
             PocketPalTheme(darkTheme = dark) {
                 Surface(Modifier.fillMaxSize()) {
-                    PocketPalApp()
+                    PocketPalRoot()
                 }
             }
         }

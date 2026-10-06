@@ -1,9 +1,8 @@
 package com.tasp1.pocketpal.ui.components
 
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -14,12 +13,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.sp
 
-/** Matches PocketPal ChatHeader: title = session name, subtitle = model id */
+/** Minimal Claude-like chat app bar: menu · title · new · more */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatTopBar(
@@ -27,29 +25,27 @@ fun ChatTopBar(
     modelId: String,
     onMenu: () -> Unit,
     onNewChat: () -> Unit,
-    onMore: () -> Unit,
+    onMore: () -> Unit = {},
 ) {
     TopAppBar(
         title = {
-            Column(Modifier.fillMaxWidth()) {
+            Column {
                 Text(
-                    title,
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 17.sp,
-                    ),
+                    title.ifBlank { "Chat" },
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 17.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Text(
-                    modelId,
-                    style = MaterialTheme.typography.bodySmall.copy(
+                if (modelId.isNotBlank()) {
+                    Text(
+                        modelId.substringAfterLast('/').take(36),
+                        style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 12.sp,
-                    ),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
         },
         navigationIcon = {
@@ -59,7 +55,7 @@ fun ChatTopBar(
         },
         actions = {
             IconButton(onClick = onNewChat) {
-                Icon(Icons.Default.Edit, contentDescription = "New chat")
+                Icon(Icons.Default.Add, contentDescription = "New chat")
             }
             IconButton(onClick = onMore) {
                 Icon(Icons.Default.MoreVert, contentDescription = "More")

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -60,9 +61,13 @@ fun ChatBubble(turn: ChatTurn, modifier: Modifier = Modifier) {
         Column(
             modifier = Modifier
                 .widthIn(max = 520.dp)
-                .clip(RoundedCornerShape(if (isUser) 18.dp else 4.dp))
-                .background(if (isUser) extra.userBubble else extra.assistantBubble)
-                .padding(horizontal = 14.dp, vertical = 10.dp),
+                .then(
+                    if (isUser) Modifier
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(extra.userBubble)
+                    else Modifier
+                )
+                .padding(horizontal = if (isUser) 14.dp else 4.dp, vertical = 10.dp),
         ) {
             if (turn.imageDataUrls.isNotEmpty()) {
                 Row(

@@ -1,6 +1,3 @@
-import com.tasp1.pocketpal.PocketPalApp
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.runtime.collectAsState
 package com.tasp1.pocketpal.ui.navigation
 
 import androidx.compose.foundation.clickable
@@ -18,9 +15,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.outlined.ModelTraining
 import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.Widgets
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.FloatingActionButton
@@ -32,19 +27,23 @@ import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.tasp1.pocketpal.PocketPalApp as PocketPalApplication
 import com.tasp1.pocketpal.ui.screens.about.AboutScreen
 import com.tasp1.pocketpal.ui.screens.benchmark.BenchmarkScreen
 import com.tasp1.pocketpal.ui.screens.chat.ChatScreen
@@ -58,7 +57,7 @@ private data class NavEntry(val route: String, val label: String, val icon: Imag
 private val primary = listOf(
     NavEntry(Routes.CHAT, "Chats", Icons.AutoMirrored.Outlined.Chat),
     NavEntry(Routes.PALS, "Projects", Icons.Outlined.Folder),
-    NavEntry(Routes.MODELS, "Code", Icons.Outlined.Code),
+    NavEntry(Routes.MODELS, "Models", Icons.Outlined.Code),
     NavEntry(Routes.BENCHMARK, "Artifacts", Icons.Outlined.Widgets),
 )
 
@@ -68,14 +67,14 @@ private val secondary = listOf(
 )
 
 @Composable
-fun PocketPalApp() {
+fun PocketPalRoot() {
     val nav = rememberNavController()
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
-    val app = LocalContext.current.applicationContext as PocketPalApp
-    val sessions by app.container.sessions.sessions.collectAsState(initial = emptyList())
     val backStack by nav.currentBackStackEntryAsState()
     val current = backStack?.destination?.route ?: Routes.CHAT
+    val app = LocalContext.current.applicationContext as PocketPalApplication
+    val sessions by app.container.sessions.sessions.collectAsState(initial = emptyList())
 
     fun openDrawer() = scope.launch { drawerState.open() }
     fun go(route: String) {
@@ -94,7 +93,7 @@ fun PocketPalApp() {
                 Column(
                     Modifier
                         .verticalScroll(rememberScrollState())
-                        .padding(bottom = 24.dp),
+                        .padding(bottom = 28.dp),
                 ) {
                     Text(
                         "PocketPal",
@@ -130,17 +129,14 @@ fun PocketPalApp() {
                     } else {
                         sessions.take(12).forEach { s ->
                             Text(
-                                s.title,
+                                s.title.ifBlank { "Untitled" },
                                 style = MaterialTheme.typography.bodyMedium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable {
-                                        go(Routes.CHAT)
-                                        // load via saved state handle later — emit event
-                                        scope.launch { drawerState.close() }
-                                    }
+                                    .clickable { go(Routes.CHAT); scope.launch { drawerState.close() } }
                                     .padding(horizontal = 24.dp, vertical = 12.dp),
-                                maxLines = 1,
                             )
                         }
                     }
@@ -159,9 +155,14 @@ fun PocketPalApp() {
                         modifier = Modifier
                             .align(Alignment.End)
                             .padding(end = 20.dp),
+                        containerColor = MaterialTheme.colorScheme.onBackground,
+                        contentColor = MaterialTheme.colorScheme.background,
                     ) {
-                        Row(Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Add, null)
+                        Row(
+                            Modifier.padding(horizontal = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null)
                             Text("  New chat", fontWeight = FontWeight.SemiBold)
                         }
                     }
