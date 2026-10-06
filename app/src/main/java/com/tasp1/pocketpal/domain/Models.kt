@@ -12,6 +12,7 @@ data class ChatTurn(
     val imageDataUrls: List<String> = emptyList(),
     val attachmentNames: List<String> = emptyList(),
     val ocrPreview: String? = null,
+    val toolSteps: List<ToolStep> = emptyList(),
 ) {
     enum class Role { User, Assistant }
 }

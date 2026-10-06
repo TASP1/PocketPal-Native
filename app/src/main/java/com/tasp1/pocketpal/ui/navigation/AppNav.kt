@@ -1,31 +1,43 @@
 package com.tasp1.pocketpal.ui.navigation
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Chat
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.ModelTraining
-import androidx.compose.material.icons.filled.People
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.automirrored.outlined.Chat
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.outlined.Code
+import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.ModelTraining
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Speed
+import androidx.compose.material.icons.outlined.Widgets
 import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
-import androidx.compose.material3.NavigationDrawerItem
-import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -38,14 +50,19 @@ import com.tasp1.pocketpal.ui.screens.pals.PalsScreen
 import com.tasp1.pocketpal.ui.screens.settings.SettingsScreen
 import kotlinx.coroutines.launch
 
-private fun iconFor(route: String): ImageVector = when (route) {
-    Routes.CHAT -> Icons.Default.Chat
-    Routes.MODELS -> Icons.Default.ModelTraining
-    Routes.PALS -> Icons.Default.People
-    Routes.BENCHMARK -> Icons.Default.Speed
-    Routes.SETTINGS -> Icons.Default.Settings
-    else -> Icons.Default.Info
-}
+private data class NavEntry(val route: String, val label: String, val icon: ImageVector)
+
+private val primary = listOf(
+    NavEntry(Routes.CHAT, "Chats", Icons.AutoMirrored.Outlined.Chat),
+    NavEntry(Routes.PALS, "Projects", Icons.Outlined.Folder),
+    NavEntry(Routes.MODELS, "Code", Icons.Outlined.Code),
+    NavEntry(Routes.BENCHMARK, "Artifacts", Icons.Outlined.Widgets),
+)
+
+private val secondary = listOf(
+    NavEntry(Routes.SETTINGS, "Settings", Icons.Outlined.Settings),
+    NavEntry(Routes.APP_INFO, "App Info", Icons.Outlined.Info),
+)
 
 @Composable
 fun PocketPalApp() {
@@ -69,21 +86,71 @@ fun PocketPalApp() {
         drawerState = drawerState,
         drawerContent = {
             ModalDrawerSheet {
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    "PocketPal",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 28.dp, vertical = 16.dp),
-                )
-                MainDrawerItems.forEach { item ->
-                    NavigationDrawerItem(
-                        icon = { Icon(iconFor(item.route), contentDescription = null) },
-                        label = { Text(item.label) },
-                        selected = current == item.route,
-                        onClick = { go(item.route) },
-                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
+                Column(
+                    Modifier
+                        .verticalScroll(rememberScrollState())
+                        .padding(bottom = 24.dp),
+                ) {
+                    Text(
+                        "PocketPal",
+                        style = MaterialTheme.typography.headlineMedium.copy(
+                            fontFamily = FontFamily.Serif,
+                            fontWeight = FontWeight.Normal,
+                            fontSize = 28.sp,
+                        ),
+                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 20.dp),
                     )
+                    primary.forEach { item ->
+                        DrawerRow(
+                            label = item.label,
+                            icon = item.icon,
+                            selected = current == item.route,
+                            onClick = { go(item.route) },
+                        )
+                    }
+                    HorizontalDivider(Modifier.padding(vertical = 12.dp, horizontal = 16.dp))
+                    Text(
+                        "Recents",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+                    )
+                    listOf(
+                        "Kaggle PocketPal bridge API setup",
+                        "CLI MCP terminal usage",
+                        "Cross-platform media engine",
+                    ).forEach { title ->
+                        Text(
+                            title,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { go(Routes.CHAT); scope.launch { drawerState.close() } }
+                                .padding(horizontal = 24.dp, vertical = 12.dp),
+                            maxLines = 1,
+                        )
+                    }
+                    HorizontalDivider(Modifier.padding(vertical = 12.dp, horizontal = 16.dp))
+                    secondary.forEach { item ->
+                        DrawerRow(
+                            label = item.label,
+                            icon = item.icon,
+                            selected = current == item.route,
+                            onClick = { go(item.route) },
+                        )
+                    }
+                    Spacer(Modifier.height(16.dp))
+                    FloatingActionButton(
+                        onClick = { go(Routes.CHAT) },
+                        modifier = Modifier
+                            .align(Alignment.End)
+                            .padding(end = 20.dp),
+                    ) {
+                        Row(Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Add, null)
+                            Text("  New chat", fontWeight = FontWeight.SemiBold)
+                        }
+                    }
                 }
             }
         },
@@ -96,5 +163,34 @@ fun PocketPalApp() {
             composable(Routes.SETTINGS) { SettingsScreen(onOpenDrawer = { openDrawer() }) }
             composable(Routes.APP_INFO) { AboutScreen(onOpenDrawer = { openDrawer() }) }
         }
+    }
+}
+
+@Composable
+private fun DrawerRow(
+    label: String,
+    icon: ImageVector,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 20.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = if (selected) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.onSurface,
+        )
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+            modifier = Modifier.padding(start = 16.dp),
+        )
     }
 }

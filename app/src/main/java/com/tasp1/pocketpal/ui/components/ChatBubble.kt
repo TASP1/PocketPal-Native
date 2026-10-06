@@ -1,3 +1,9 @@
+import androidx.compose.ui.platform.LocalContext
+import android.content.Context
+import android.content.ClipboardManager
+import android.content.ClipData
+import com.tasp1.pocketpal.ui.components.claude.MessageActionBar
+import com.tasp1.pocketpal.ui.components.claude.ToolStepRow
 import com.tasp1.pocketpal.ui.components.claude.ThinkingBlock
 package com.tasp1.pocketpal.ui.components
 
@@ -102,6 +108,9 @@ fun ChatBubble(turn: ChatTurn, modifier: Modifier = Modifier) {
                     modifier = Modifier.padding(bottom = 8.dp),
                 )
             }
+            turn.toolSteps.forEach { step ->
+                ToolStepRow(step = step, onOpen = { /* sheet opened by parent via callback */ })
+            }
             if (body.isNotBlank()) {
                 if (isUser) {
                     Text(
@@ -117,6 +126,15 @@ fun ChatBubble(turn: ChatTurn, modifier: Modifier = Modifier) {
             }
             if (sources.isNotEmpty()) {
                 SourcesCard(sources = sources, modifier = Modifier.padding(top = 8.dp))
+                if (!turn.isStreaming) {
+                    val ctx = LocalContext.current
+                    MessageActionBar(
+                        onCopy = {
+                            val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                            cm.setPrimaryClip(ClipData.newPlainText("assistant", body))
+                        },
+                    )
+                }
             }
             turn.error?.let {
                 Text(

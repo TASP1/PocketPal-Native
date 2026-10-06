@@ -33,6 +33,11 @@ import com.tasp1.pocketpal.ui.components.ChatBubble
 import com.tasp1.pocketpal.ui.components.ChatEmptyPlaceholder
 import com.tasp1.pocketpal.ui.components.ChatInputBar
 import com.tasp1.pocketpal.ui.components.ChatTopBar
+import com.tasp1.pocketpal.ui.components.sheets.AddToChatSheet
+import com.tasp1.pocketpal.ui.components.sheets.ModelOption
+import com.tasp1.pocketpal.ui.components.sheets.ModelPickerSheet
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 
 @Composable
 fun ChatScreen(onOpenDrawer: () -> Unit) {
@@ -41,6 +46,8 @@ fun ChatScreen(onOpenDrawer: () -> Unit) {
     val state by vm.ui.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     val snack = remember { SnackbarHostState() }
+    var showModels by remember { mutableStateOf(false) }
+    var showAdd by remember { mutableStateOf(false) }
 
     // Multi image (Photo Picker — no storage permission on modern Android)
     val multiImage = rememberLauncherForActivityResult(
@@ -97,14 +104,7 @@ fun ChatScreen(onOpenDrawer: () -> Unit) {
                 onToggleShell = vm::toggleShell,
                 pending = state.pending,
                 processingAttach = state.processingAttach,
-                onAttach = {
-                    // Prefer images; long-press alternative would open docs — use images first
-                    multiImage.launch(
-                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
-                    )
-                    // Also allow files via second path: openDoc for PDFs — expose via same + for now
-                    // Users can use system picker if we open documents — dual: open images primarily
-                },
+                onAttach = { showAdd = true },
                 onRemovePending = vm::removePending,
                 highVision = state.visionQuality == AttachmentProcessor.VisionQuality.High,
                 onToggleHighVision = {
@@ -144,5 +144,32 @@ fun ChatScreen(onOpenDrawer: () -> Unit) {
                 )
             }
         }
+    }
+
+    if (showModels) {
+        ModelPickerSheet(
+            models = listOf(
+                ModelOption("google/gemini-2.5-flash", "Gemini 2.5 Flash", "Fast Kaggle Bridge default"),
+                ModelOption("google/gemini-2.5-pro", "Gemini 2.5 Pro", "Stronger reasoning"),
+                ModelOption("anthropic/claude-sonnet-5@default", "Claude Sonnet", "Balanced"),
+                ModelOption("deepseek-ai/deepseek-r1-0528", "DeepSeek R1", "Reasoning"),
+            ),
+            selectedId = state.baseModel,
+            onSelect = { id ->
+                showModels = false
+            },
+            onDismiss = { showModels = false },
+            effortLabel = if (state.flags.think) "High" else "Medium",
+        )
+    }
+    if (showAdd) {
+        AddToChatSheet(
+            webSearch = state.flags.web,
+            onWebSearch = { on -> if (on != state.flags.web) vm.toggleWeb() },
+            onCamera = { showAdd = false; multiImage.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+            onPhotos = { showAdd = false; multiImage.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+            onFiles = { showAdd = false; openDoc.launch(arrayOf("*/*")) },
+            onDismiss = { showAdd = false },
+        )
     }
 }
