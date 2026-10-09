@@ -83,7 +83,7 @@ class BridgeClient(
     /** Non-streaming completion */
     suspend fun chatOnce(model: String, messages: List<Pair<String, String>>): String =
         withContext(Dispatchers.IO) {
-            val payload = buildPayload(model, messages, stream = false)
+            val payload = buildPayloadPairs(model, messages, stream = false)
             val req = authRequest("/v1/chat/completions")
                 .post(payload.toRequestBody(jsonMedia))
                 .build()
@@ -104,7 +104,7 @@ class BridgeClient(
      * Gateway may send full answer as progressive chunks even when backend is non-stream.
      */
     fun chatStream(model: String, messages: List<Pair<String, String>>): Flow<StreamEvent> = callbackFlow {
-        val payload = buildPayload(model, messages, stream = true)
+        val payload = buildPayloadPairs(model, messages, stream = true)
         val req = authRequest("/v1/chat/completions")
             .header("Accept", "text/event-stream")
             .post(payload.toRequestBody(jsonMedia))
@@ -216,8 +216,8 @@ class BridgeClient(
     private fun List<Pair<String, String>>.toMsgs(): List<Msg> =
         map { (role, text) -> Msg(role, text) }
 
-    // Overloads used by existing call sites
-    private fun buildPayload(
+    // Named differently — List erases on JVM so cannot overload buildPayload(List)
+    private fun buildPayloadPairs(
         model: String,
         messages: List<Pair<String, String>>,
         stream: Boolean,
