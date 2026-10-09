@@ -27,7 +27,7 @@ class AttachmentProcessor(private val context: Context) {
     enum class VisionQuality { High, Balanced, Low }
 
     companion object {
-        private const val MAX_JPEG_BYTES = 1_500_000 // ~1.5MB base64 payload cap
+        private const val MAX_JPEG_BYTES = 800_000 // ~1.5MB base64 payload cap
     }
 
     suspend fun fromUri(

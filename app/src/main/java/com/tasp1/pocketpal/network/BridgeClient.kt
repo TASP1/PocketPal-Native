@@ -149,8 +149,7 @@ class BridgeClient(
             override fun onFailure(eventSource: EventSource, t: Throwable?, response: Response?) {
                 val code = response?.code
                 val errBody = try { response?.body?.string() } catch (_: Exception) { null }
-                trySend(
-                    StreamEvent.Error(
+                trySend(StreamEvent.Error(
                         t?.message
                             ?: errBody
                             ?: "stream failed${code?.let { " ($it)" } ?: ""}",

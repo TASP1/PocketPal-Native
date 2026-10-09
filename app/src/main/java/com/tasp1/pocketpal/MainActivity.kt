@@ -21,7 +21,7 @@ import kotlinx.coroutines.flow.map
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        runCatching { enableEdgeToEdge() }
         setContent {
             val app = LocalContext.current.applicationContext as? PocketPalApp
             if (app == null) {
@@ -30,9 +30,11 @@ class MainActivity : ComponentActivity() {
                 }
                 return@setContent
             }
-            val themeMode by app.container.settings.settings
-                .map { it.theme }
-                .collectAsState(initial = "system")
+            val themeMode by runCatching {
+                app.container.settings.settings.map { it.theme }
+            }.getOrElse {
+                kotlinx.coroutines.flow.flowOf("system")
+            }.collectAsState(initial = "system")
             val systemDark = isSystemInDarkTheme()
             val dark = when (themeMode) {
                 "dark" -> true

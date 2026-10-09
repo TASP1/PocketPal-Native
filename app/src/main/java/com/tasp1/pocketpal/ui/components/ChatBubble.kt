@@ -4,18 +4,11 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -23,14 +16,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
 import com.tasp1.pocketpal.data.BridgeContent
-import com.tasp1.pocketpal.data.MessageCleaner
 import com.tasp1.pocketpal.data.BridgeSource
+import com.tasp1.pocketpal.data.MessageCleaner
 import com.tasp1.pocketpal.domain.ChatTurn
 import com.tasp1.pocketpal.ui.components.claude.MessageActionBar
 import com.tasp1.pocketpal.ui.components.claude.ThinkingBlock
@@ -41,10 +32,14 @@ import com.tasp1.pocketpal.ui.theme.LocalPpExtra
 fun ChatBubble(turn: ChatTurn, modifier: Modifier = Modifier) {
     val isUser = turn.role == ChatTurn.Role.User
     val extra = LocalPpExtra.current
-    val body = if (turn.isStreaming) MessageCleaner.visibleBody(turn.content) else turn.content
-    val prepared = remember(turn.sourcesJson, body) {
+    val rawBody = remember(turn.content, turn.isStreaming) {
         runCatching {
-            val base = BridgeContent.prepare(body)
+            if (turn.isStreaming) MessageCleaner.visibleBody(turn.content) else turn.content
+        }.getOrDefault(turn.content)
+    }
+    val prepared = remember(turn.sourcesJson, rawBody) {
+        runCatching {
+            val base = BridgeContent.prepare(rawBody)
             if (turn.sourcesJson.isNotBlank()) {
                 val srcs = turn.sourcesJson.lines().mapNotNull { line ->
                     val p = line.split("|")
@@ -53,14 +48,16 @@ fun ChatBubble(turn: ChatTurn, modifier: Modifier = Modifier) {
                 if (srcs.isNotEmpty()) base.copy(sources = srcs) else base
             } else base
         }.getOrElse {
-            com.tasp1.pocketpal.data.BridgeContentParts(body, emptyList())
+            com.tasp1.pocketpal.data.BridgeContentParts(rawBody, emptyList())
         }
     }
-    val sources = prepared.sources
     val displayBody = prepared.body
+    val sources = prepared.sources
 
     Column(
-        modifier = modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp, vertical = 2.dp),
         horizontalAlignment = if (isUser) Alignment.End else Alignment.Start,
     ) {
         Column(
@@ -74,30 +71,9 @@ fun ChatBubble(turn: ChatTurn, modifier: Modifier = Modifier) {
                 )
                 .padding(horizontal = if (isUser) 14.dp else 4.dp, vertical = 10.dp),
         ) {
-            if (turn.imageDataUrls.isNotEmpty()) {
-                Row(
-                    Modifier
-                        .horizontalScroll(rememberScrollState())
-                        .padding(bottom = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    turn.imageDataUrls.take(4).forEach { url ->
-                        // Cap decode size — huge data URLs can OOM
-                        AsyncImage(
-                            model = url,
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .width(120.dp)
-                                .heightIn(max = 160.dp)
-                                .clip(RoundedCornerShape(12.dp)),
-                        )
-                    }
-                }
-            }
-            if (turn.attachmentNames.isNotEmpty() && turn.imageDataUrls.isEmpty()) {
+            if (turn.attachmentNames.isNotEmpty()) {
                 Text(
-                    turn.attachmentNames.joinToString(", "),
+                    "📎 " + turn.attachmentNames.joinToString(", "),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.secondary,
                     modifier = Modifier.padding(bottom = 4.dp),
@@ -109,7 +85,7 @@ fun ChatBubble(turn: ChatTurn, modifier: Modifier = Modifier) {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(bottom = 6.dp),
-                    maxLines = 4,
+                    maxLines = 3,
                 )
             }
             if (turn.reasoning.isNotBlank() && !isUser) {
@@ -126,22 +102,21 @@ fun ChatBubble(turn: ChatTurn, modifier: Modifier = Modifier) {
                 if (isUser) {
                     Text(
                         displayBody,
-                        style = MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp, lineHeight = 24.sp),
+                        style = MaterialTheme.typography.bodyLarge.copy(
+                            fontSize = 16.sp,
+                            lineHeight = 24.sp,
+                        ),
                         color = MaterialTheme.colorScheme.onBackground,
                     )
                 } else {
                     MarkdownText(text = displayBody)
                 }
             } else if (turn.isStreaming && !isUser) {
-                Text(
-                    "…",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 16.sp,
-                )
+                Text("…", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 16.sp)
             }
-            if (turn.error != null) {
+            turn.error?.let { err ->
                 Text(
-                    turn.error,
+                    err,
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(top = 6.dp),
