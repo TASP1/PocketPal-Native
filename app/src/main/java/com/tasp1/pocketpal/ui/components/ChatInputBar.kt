@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -165,7 +166,7 @@ fun ChatInputBar(
                         maxLines = 1,
                     )
                 }
-                androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+                Spacer(Modifier.weight(1f))
                 IconButton(onClick = {}) {
                     Icon(
                         Icons.Outlined.Mic,
@@ -212,10 +213,6 @@ fun ChatInputBar(
     }
 }
 
-@Composable
-private fun androidx.compose.foundation.layout.Spacer(Modifier.weight(1f)) {
-    androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
-}
 
 @Composable
 private fun CapChip(

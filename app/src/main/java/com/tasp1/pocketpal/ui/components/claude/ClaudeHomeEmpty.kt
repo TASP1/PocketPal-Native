@@ -69,5 +69,11 @@ fun ClaudeHomeEmpty(
             ),
             modifier = Modifier.padding(top = 20.dp),
         )
+        Text(
+            "Agent: type $ ls or /shell pwd · Shell chip → Render",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 12.dp),
+        )
     }
 }
