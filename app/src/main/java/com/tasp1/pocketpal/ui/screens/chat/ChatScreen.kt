@@ -104,7 +104,8 @@ fun ChatScreen(onOpenDrawer: () -> Unit) {
                 modelId = modelLabel + (healthHint?.let { " · $it" } ?: ""),
                 onMenu = onOpenDrawer,
                 onNewChat = vm::newChat,
-                onMore = { vm.refreshHealth() },
+                onDeleteChat = { vm.deleteCurrentChat() },
+                onShare = { /* system share later */ },
             )
         },
         snackbarHost = { SnackbarHost(snack) },
@@ -167,10 +168,14 @@ fun ChatScreen(onOpenDrawer: () -> Unit) {
     if (showModels) {
         ModelPickerSheet(
             models = listOf(
-                ModelOption("google/gemini-2.5-flash", "Gemini 2.5 Flash", "Fast Kaggle Bridge default"),
+                ModelOption("google/gemini-2.5-flash", "Gemini 2.5 Flash", "Fast · everyday"),
                 ModelOption("google/gemini-2.5-pro", "Gemini 2.5 Pro", "Stronger reasoning"),
-                ModelOption("anthropic/claude-sonnet-5@default", "Claude Sonnet", "Balanced"),
-                ModelOption("deepseek-ai/deepseek-r1-0528", "DeepSeek R1", "Reasoning"),
+                ModelOption("anthropic/claude-sonnet-5@default", "Claude Sonnet", "Balanced chat"),
+                ModelOption("anthropic/claude-opus-4-1-20250805", "Claude Opus", "Hardest tasks"),
+                ModelOption("openai/gpt-5.4-mini-2026-03-17", "GPT 5.4 Mini", "Quick answers"),
+                ModelOption("deepseek-ai/deepseek-r1-0528", "DeepSeek R1", "Deep reasoning"),
+                ModelOption("qwen/qwen3-235b-a22b-instruct-2507", "Qwen3 235B", "Large instruct"),
+                ModelOption("xai/grok-4", "Grok 4", "xAI"),
             ),
             selectedId = state.baseModel,
             onSelect = { id ->

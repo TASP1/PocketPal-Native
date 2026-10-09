@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.tasp1.pocketpal.data.AppContainer
 import com.tasp1.pocketpal.data.AttachmentProcessor
 import com.tasp1.pocketpal.data.BridgeContent
+import com.tasp1.pocketpal.data.MessageCleaner
 import com.tasp1.pocketpal.domain.Attachment
 import com.tasp1.pocketpal.domain.ChatTurn
 import com.tasp1.pocketpal.domain.ChatSession
@@ -360,24 +361,16 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
 
     private fun finalizeAssistant(asstId: String, rawContent: String, rawReasoning: String) {
         try {
-            val parts = runCatching { BridgeContent.prepare(rawContent) }
-                .getOrElse { com.tasp1.pocketpal.data.BridgeContentParts(rawContent, emptyList()) }
-            val body = parts.body
-            val thinkFromTags = runCatching {
-                Regex("(?s)<think>(.*?)</think>")
-                    .findAll(rawContent)
-                    .joinToString("\n") { it.groupValues[1] }
-            }.getOrDefault("")
-            val finalReasoning = rawReasoning.ifBlank { thinkFromTags }
+            val cleaned = MessageCleaner.clean(rawContent, rawReasoning)
             _ui.update { st ->
                 st.copy(
                     sending = false,
                     turns = st.turns.map {
                         if (it.id == asstId) it.copy(
-                            content = body.ifBlank { rawContent }.ifBlank { "(empty response)" },
-                            reasoning = finalReasoning.trim(),
+                            content = cleaned.body.ifBlank { "(empty response)" },
+                            reasoning = cleaned.reasoning,
                             isStreaming = false,
-                            sourcesJson = parts.sources.joinToString("\n") { s ->
+                            sourcesJson = cleaned.sources.joinToString("\n") { s ->
                                 "${s.index}|${s.title}|${s.url}"
                             },
                             error = null,
@@ -388,7 +381,7 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
             persistSession()
         } catch (e: Exception) {
             android.util.Log.e("ChatVM", "finalize failed", e)
-            patchAssistant(asstId, rawContent.ifBlank { "(error)" }, rawReasoning, false, e.message)
+            patchAssistant(asstId, MessageCleaner.visibleBody(rawContent).ifBlank { "(error)" }, rawReasoning, false, e.message)
             _ui.update { it.copy(sending = false) }
             persistSession()
         }
@@ -553,6 +546,15 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
             }
             persistSession()
         }
+    }
+
+    fun deleteCurrentChat() {
+        streamJob?.cancel()
+        val id = currentSessionId
+        viewModelScope.launch {
+            runCatching { container.sessions.delete(id) }
+        }
+        newChat()
     }
 
     fun stopGeneration() {

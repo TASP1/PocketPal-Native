@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.tasp1.pocketpal.data.BridgeContent
+import com.tasp1.pocketpal.data.MessageCleaner
 import com.tasp1.pocketpal.data.BridgeSource
 import com.tasp1.pocketpal.domain.ChatTurn
 import com.tasp1.pocketpal.ui.components.claude.MessageActionBar
@@ -40,7 +41,7 @@ import com.tasp1.pocketpal.ui.theme.LocalPpExtra
 fun ChatBubble(turn: ChatTurn, modifier: Modifier = Modifier) {
     val isUser = turn.role == ChatTurn.Role.User
     val extra = LocalPpExtra.current
-    val body = turn.content
+    val body = if (turn.isStreaming) MessageCleaner.visibleBody(turn.content) else turn.content
     val prepared = remember(turn.sourcesJson, body) {
         runCatching {
             val base = BridgeContent.prepare(body)

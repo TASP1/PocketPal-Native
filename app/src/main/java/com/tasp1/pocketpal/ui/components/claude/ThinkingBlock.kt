@@ -64,7 +64,7 @@ fun ThinkingBlock(
         }
         AnimatedVisibility(visible = expanded) {
             Text(
-                text,
+                text.replace(Regex("\*\*"), "").replace(Regex("</?think>", RegexOption.IGNORE_CASE), "").trim(),
                 style = MaterialTheme.typography.bodySmall.copy(
                     fontSize = 13.sp,
                     lineHeight = 18.sp,
