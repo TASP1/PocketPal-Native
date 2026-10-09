@@ -304,20 +304,51 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
         val reasoning = StringBuilder()
         var finished = false
         try {
-            // Prefer streaming; fall back to one-shot on any failure
             container.engines.active.stream(model, history)
                 .flowOn(Dispatchers.IO)
                 .collect { ev ->
                     when (ev) {
                         is StreamEvent.ContentDelta -> {
                             content.append(ev.text)
-                            patchAssistant(asstId, content.toString(), reasoning.toString(), true)
+                            val vis = MessageCleaner.visibleBody(content.toString())
+                            val r = MessageCleaner.visibleReasoning(content.toString(), reasoning.toString())
+                            patchAssistant(asstId, vis, r, true)
                         }
                         is StreamEvent.ReasoningDelta -> {
                             reasoning.append(ev.text)
-                            patchAssistant(asstId, content.toString(), reasoning.toString(), true)
+                            val vis = MessageCleaner.visibleBody(content.toString())
+                            val r = MessageCleaner.visibleReasoning(content.toString(), reasoning.toString())
+                            patchAssistant(asstId, vis, r, true)
                         }
-                        is StreamEvent.SearchProgress -> { /* ignore for stability */ }
+                        is StreamEvent.SearchProgress -> {
+                            val msg = ev.text.trim()
+                            if (msg.isNotBlank()) {
+                                _ui.update { st ->
+                                    st.copy(
+                                        turns = st.turns.map { turn ->
+                                            if (turn.id != asstId) turn
+                                            else {
+                                                val steps = turn.toolSteps.toMutableList()
+                                                val last = steps.lastOrNull()
+                                                if (last != null && !last.done &&
+                                                    last.kind == com.tasp1.pocketpal.domain.ToolStep.Kind.Search
+                                                ) {
+                                                    steps[steps.lastIndex] = last.copy(title = msg.take(80))
+                                                } else {
+                                                    steps += com.tasp1.pocketpal.domain.ToolStep(
+                                                        id = java.util.UUID.randomUUID().toString(),
+                                                        title = msg.take(80),
+                                                        kind = com.tasp1.pocketpal.domain.ToolStep.Kind.Search,
+                                                        done = false,
+                                                    )
+                                                }
+                                                turn.copy(toolSteps = steps)
+                                            }
+                                        },
+                                    )
+                                }
+                            }
+                        }
                         is StreamEvent.Done -> {
                             finished = true
                             finalizeAssistant(asstId, content.toString(), reasoning.toString())
@@ -327,13 +358,9 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
                             if (content.isEmpty()) {
                                 runOnce(model, history, asstId)
                             } else {
-                                patchAssistant(
-                                    asstId,
-                                    content.toString(),
-                                    reasoning.toString(),
-                                    streaming = false,
-                                    error = ev.message,
-                                )
+                                val vis = MessageCleaner.visibleBody(content.toString())
+                                val r = MessageCleaner.visibleReasoning(content.toString(), reasoning.toString())
+                                patchAssistant(asstId, vis, r, false, error = ev.message)
                                 _ui.update { it.copy(sending = false) }
                                 persistSession()
                             }
@@ -352,7 +379,13 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
             if (content.isEmpty()) {
                 runOnce(model, history, asstId)
             } else {
-                patchAssistant(asstId, content.toString(), reasoning.toString(), false, e.message)
+                patchAssistant(
+                    asstId,
+                    MessageCleaner.visibleBody(content.toString()),
+                    MessageCleaner.visibleReasoning(content.toString(), reasoning.toString()),
+                    false,
+                    e.message,
+                )
                 _ui.update { it.copy(sending = false) }
                 persistSession()
             }
@@ -394,23 +427,27 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
     ) {
         try {
             val raw = container.engines.active.complete(model, history)
-            val parts = BridgeContent.prepare(raw)
+            val cleaned = MessageCleaner.clean(raw)
             _ui.update { st ->
                 st.copy(
                     sending = false,
                     turns = st.turns.map {
                         if (it.id == asstId) it.copy(
-                            content = parts.body.ifBlank { raw },
+                            content = cleaned.body.ifBlank { "(empty response)" },
+                            reasoning = cleaned.reasoning.ifBlank { it.reasoning },
                             isStreaming = false,
-                            sourcesJson = parts.sources.joinToString("\n") { s ->
+                            sourcesJson = cleaned.sources.joinToString("\n") { s ->
                                 "${s.index}|${s.title}|${s.url}"
                             },
+                            error = null,
                         ) else it
                     },
                 )
             }
+            persistSession()
         } catch (e: Exception) {
-            patchAssistant(asstId, "", "", false, error = e.message)
+            android.util.Log.e("ChatVM", "runOnce failed", e)
+            patchAssistant(asstId, "", "", false, error = e.message ?: "request failed")
             _ui.update { it.copy(sending = false) }
             persistSession()
         }
@@ -430,7 +467,7 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
                         content = content,
                         reasoning = reasoning,
                         isStreaming = streaming,
-                        error = error,
+                        error = error, // null clears previous error
                     ) else it
                 },
             )

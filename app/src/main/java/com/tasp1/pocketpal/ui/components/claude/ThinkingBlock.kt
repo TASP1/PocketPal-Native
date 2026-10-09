@@ -15,6 +15,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -26,7 +27,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/** Claude-style collapsible thinking — no raw tags in the main answer. */
 @Composable
 fun ThinkingBlock(
     text: String,
@@ -34,15 +34,16 @@ fun ThinkingBlock(
     modifier: Modifier = Modifier,
 ) {
     val cleaned = remember(text) {
-        text
-            .replace("**", "")
+        text.replace("**", "")
             .replace(Regex("(?i)</?" + "think" + ">"), "")
             .trim()
     }
     if (cleaned.isBlank()) return
 
     var expanded by remember { mutableStateOf(streaming) }
-    if (streaming) expanded = true
+    LaunchedEffect(streaming) {
+        if (streaming) expanded = true
+    }
 
     Column(
         modifier = modifier

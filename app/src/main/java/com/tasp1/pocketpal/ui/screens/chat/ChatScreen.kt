@@ -1,5 +1,6 @@
 package com.tasp1.pocketpal.ui.screens.chat
 
+import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -12,14 +13,17 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -33,25 +37,24 @@ import com.tasp1.pocketpal.ui.components.ChatBubble
 import com.tasp1.pocketpal.ui.components.ChatEmptyPlaceholder
 import com.tasp1.pocketpal.ui.components.ChatInputBar
 import com.tasp1.pocketpal.ui.components.ChatTopBar
+import com.tasp1.pocketpal.ui.components.claude.ScrollToBottomFab
 import com.tasp1.pocketpal.ui.components.sheets.AddToChatSheet
 import com.tasp1.pocketpal.ui.components.sheets.ModelOption
 import com.tasp1.pocketpal.ui.components.sheets.ModelPickerSheet
-import com.tasp1.pocketpal.ui.components.claude.ScrollToBottomFab
-import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 
 @Composable
 fun ChatScreen(onOpenDrawer: () -> Unit) {
-    val app = LocalContext.current.applicationContext as PocketPalApp
+    val ctx = LocalContext.current
+    val app = ctx.applicationContext as PocketPalApp
     val vm: ChatViewModel = viewModel(factory = ChatViewModel.Factory(app.container))
     val state by vm.ui.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     val snack = remember { SnackbarHostState() }
-    var showModels by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    var showModels by remember { mutableStateOf(false) }
+    var showAdd by remember { mutableStateOf(false) }
+
     val showScrollFab by remember {
         derivedStateOf {
             val info = listState.layoutInfo
@@ -63,15 +66,12 @@ fun ChatScreen(onOpenDrawer: () -> Unit) {
             }
         }
     }
-    var showAdd by remember { mutableStateOf(false) }
 
-    // Multi image (Photo Picker — no storage permission on modern Android)
     val multiImage = rememberLauncherForActivityResult(
         ActivityResultContracts.PickMultipleVisualMedia(maxItems = 8),
     ) { uris ->
         if (uris.isNotEmpty()) vm.addAttachments(uris)
     }
-    // Any file (large docs / PDF)
     val openDoc = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenMultipleDocuments(),
     ) { uris ->
@@ -79,7 +79,9 @@ fun ChatScreen(onOpenDrawer: () -> Unit) {
     }
 
     LaunchedEffect(state.turns.size, state.turns.lastOrNull()?.content?.length) {
-        if (state.turns.isNotEmpty()) listState.animateScrollToItem(state.turns.lastIndex)
+        if (state.turns.isNotEmpty()) {
+            runCatching { listState.animateScrollToItem(state.turns.lastIndex) }
+        }
     }
     LaunchedEffect(state.attachError) {
         state.attachError?.let {
@@ -93,7 +95,7 @@ fun ChatScreen(onOpenDrawer: () -> Unit) {
         when {
             !it.ok -> "gateway down"
             !it.backendConnected -> "notebook offline"
-            else -> "v${it.version ?: "?"} · ${it.caps.joinToString()}"
+            else -> "v${it.version ?: "?"}"
         }
     }
 
@@ -105,6 +107,21 @@ fun ChatScreen(onOpenDrawer: () -> Unit) {
                 onMenu = onOpenDrawer,
                 onNewChat = { vm.newChat() },
                 onDeleteChat = { vm.deleteCurrentChat() },
+                onShare = {
+                    val text = state.turns.joinToString("\n\n") { turn ->
+                        val who = if (turn.role.name == "User") "You" else "Assistant"
+                        "$who: ${turn.content}"
+                    }
+                    if (text.isNotBlank()) {
+                        val send = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, text)
+                        }
+                        runCatching {
+                            ctx.startActivity(Intent.createChooser(send, "Share chat"))
+                        }
+                    }
+                },
             )
         },
         snackbarHost = { SnackbarHost(snack) },
@@ -118,10 +135,15 @@ fun ChatScreen(onOpenDrawer: () -> Unit) {
                 onToggleWeb = vm::toggleWeb,
                 onToggleThink = vm::toggleThink,
                 onToggleShell = vm::toggleShell,
+                onSend = vm::send,
+                onStop = vm::stopGeneration,
+                modelLabel = state.baseModel.substringAfterLast('/').take(22),
+                onModelClick = { showModels = true },
+                sending = state.sending,
                 pending = state.pending,
-                processingAttach = state.processingAttach,
                 onAttach = { showAdd = true },
                 onRemovePending = vm::removePending,
+                processingAttach = state.processingAttach,
                 highVision = state.visionQuality == AttachmentProcessor.VisionQuality.High,
                 onToggleHighVision = {
                     vm.setVisionQuality(
@@ -132,11 +154,6 @@ fun ChatScreen(onOpenDrawer: () -> Unit) {
                 },
                 autoOcr = state.autoOcr,
                 onToggleOcr = { vm.setAutoOcr(!state.autoOcr) },
-                onSend = vm::send,
-                onStop = vm::stopGeneration,
-                modelLabel = state.baseModel,
-                onModelClick = { showModels = true },
-                sending = state.sending,
                 modifier = Modifier.imePadding(),
             )
         },
@@ -156,9 +173,16 @@ fun ChatScreen(onOpenDrawer: () -> Unit) {
                     }
                 }
             }
-            if (state.sending) {
-                CircularProgressIndicator(
-                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp),
+            if (showScrollFab) {
+                ScrollToBottomFab(
+                    onClick = {
+                        scope.launch {
+                            runCatching { listState.animateScrollToItem(state.turns.lastIndex.coerceAtLeast(0)) }
+                        }
+                    },
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 8.dp),
                 )
             }
         }
@@ -189,9 +213,18 @@ fun ChatScreen(onOpenDrawer: () -> Unit) {
         AddToChatSheet(
             webSearch = state.flags.web,
             onWebSearch = { on -> if (on != state.flags.web) vm.toggleWeb() },
-            onCamera = { showAdd = false; multiImage.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
-            onPhotos = { showAdd = false; multiImage.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
-            onFiles = { showAdd = false; openDoc.launch(arrayOf("*/*")) },
+            onCamera = {
+                showAdd = false
+                multiImage.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+            },
+            onPhotos = {
+                showAdd = false
+                multiImage.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+            },
+            onFiles = {
+                showAdd = false
+                openDoc.launch(arrayOf("*/*"))
+            },
             onDismiss = { showAdd = false },
         )
     }
