@@ -2,7 +2,6 @@ package com.tasp1.pocketpal.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-/** Claude-inspired light surface + PocketPal accents */
 object PpLight {
     val Primary = Color(0xFF1A1A1A)
     val OnPrimary = Color(0xFFFFFFFF)
@@ -23,7 +22,7 @@ object PpLight {
     val Outline = Color(0xFFE0DED8)
     val OutlineVariant = Color(0xFFD0CEC8)
     val UserBubble = Color(0xFFE8E6E1)
-    val AssistantBubble = Color(0x00000000) // transparent — Claude style flat text
+    val AssistantBubble = Color(0x00000000)
     val InputBar = Color(0xFFFFFFFF)
     val Placeholder = Color(0xFF9A9A9A)
     val AccentPeach = Color(0xFFC4785A)
@@ -45,6 +44,7 @@ object PpDark {
     val SurfaceVariant = Color(0xFF2A2A2A)
     val OnSurfaceVariant = Color(0xFFB0B0B0)
     val Outline = Color(0xFF3A3A3A)
+    val OutlineVariant = Color(0xFF4A4A4A)
     val UserBubble = Color(0xFF2A2A2A)
     val AssistantBubble = Color(0x00000000)
     val InputBar = Color(0xFF1C1C1C)

@@ -227,9 +227,16 @@ class BridgeClient(
         model: String,
         messages: List<Msg>,
     ): Flow<StreamEvent> = callbackFlow {
-        val payload = buildPayload(model, messages, stream = true)
+        val payload = try {
+            buildPayload(model, messages, stream = true)
+        } catch (e: Exception) {
+            trySend(StreamEvent.Error(e.message ?: "payload error"))
+            close()
+            return@callbackFlow
+        }
         val req = authRequest("/v1/chat/completions")
             .header("Accept", "text/event-stream")
+            .header("ngrok-skip-browser-warning", "1")
             .post(payload.toRequestBody(jsonMedia))
             .build()
 
@@ -240,6 +247,7 @@ class BridgeClient(
                 type: String?,
                 data: String,
             ) {
+                if (data.isBlank()) return
                 if (data == "[DONE]") {
                     trySend(StreamEvent.Done(null))
                     close()
@@ -247,7 +255,25 @@ class BridgeClient(
                 }
                 try {
                     val j = JSONObject(data)
-                    val choice = j.optJSONArray("choices")?.optJSONObject(0) ?: return
+                    // Gateway progress / search status events
+                    val status = j.optString("status").ifBlank { j.optString("type") }
+                    if (status.equals("search", true) || status.equals("progress", true)) {
+                        val msg = j.optString("message").ifBlank { j.optString("content") }
+                        if (msg.isNotBlank()) trySend(StreamEvent.SearchProgress(msg))
+                        return
+                    }
+                    val choice = j.optJSONArray("choices")?.optJSONObject(0)
+                    if (choice == null) {
+                        // Non-choice payload (e.g. error object)
+                        val err = j.optString("error").ifBlank {
+                            j.optJSONObject("error")?.optString("message").orEmpty()
+                        }
+                        if (err.isNotBlank()) {
+                            trySend(StreamEvent.Error(err))
+                            close()
+                        }
+                        return
+                    }
                     val delta = choice.optJSONObject("delta") ?: JSONObject()
                     val content = delta.optString("content")
                     val reasoning = delta.optString("reasoning_content").ifBlank {
@@ -261,11 +287,14 @@ class BridgeClient(
                         close()
                     }
                 } catch (_: Exception) {
+                    // Ignore malformed chunks
                 }
             }
 
             override fun onFailure(eventSource: EventSource, t: Throwable?, response: Response?) {
-                trySend(StreamEvent.Error(t?.message ?: "stream failed"))
+                val body = try { response?.body?.string()?.take(300) } catch (_: Exception) { null }
+                val msg = t?.message ?: body ?: "stream failed (${response?.code})"
+                trySend(StreamEvent.Error(msg))
                 close()
             }
 
@@ -274,8 +303,13 @@ class BridgeClient(
                 close()
             }
         }
-        val es = EventSources.createFactory(client).newEventSource(req, listener)
-        awaitClose { es.cancel() }
+        try {
+            val es = EventSources.createFactory(client).newEventSource(req, listener)
+            awaitClose { es.cancel() }
+        } catch (e: Exception) {
+            trySend(StreamEvent.Error(e.message ?: "sse start failed"))
+            close()
+        }
     }
 
     suspend fun chatOnceVision(model: String, messages: List<Msg>): String =

@@ -17,6 +17,7 @@ import com.tasp1.pocketpal.protocol.StreamEvent
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -141,6 +142,13 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
 
     fun clearPending() = _ui.update { it.copy(pending = emptyList()) }
 
+    private suspend fun applyServerFromSettings() {
+        runCatching {
+            val s = container.settings.settings.first()
+            container.applyServer(s.serverUrl, s.apiKey, useLocal = false)
+        }
+    }
+
     fun send() {
         val state = _ui.value
         val text = state.input.trim()
@@ -263,8 +271,10 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
         history: List<BridgeClient.Msg>,
         asstId: String,
     ) {
+        applyServerFromSettings()
         val content = StringBuilder()
         val reasoning = StringBuilder()
+        var finished = false
         try {
             container.engines.active.stream(model, history).collect { ev ->
                 when (ev) {
@@ -276,33 +286,13 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
                         reasoning.append(ev.text)
                         patchAssistant(asstId, content.toString(), reasoning.toString(), true)
                     }
-                    is StreamEvent.SearchProgress -> {
-                        // surface as transient tool step title later
-                    }
+                    is StreamEvent.SearchProgress -> { }
                     is StreamEvent.Done -> {
-                        val parts = BridgeContent.prepare(content.toString())
-                        val body = parts.body
-                        val thinkFromTags = Regex("(?s)<think>(.*?)</think>")
-                            .findAll(content.toString())
-                            .joinToString("\n") { it.groupValues[1] }
-                        val finalReasoning = reasoning.toString().ifBlank { thinkFromTags }
-                        _ui.update { st ->
-                            st.copy(
-                                sending = false,
-                                turns = st.turns.map {
-                                    if (it.id == asstId) it.copy(
-                                        content = body.ifBlank { content.toString() },
-                                        reasoning = finalReasoning.trim(),
-                                        isStreaming = false,
-                                        sourcesJson = parts.sources.joinToString("\n") { s ->
-                                            "${s.index}|${s.title}|${s.url}"
-                                        },
-                                    ) else it
-                                },
-                            )
-                        }
+                        finished = true
+                        finalizeAssistant(asstId, content.toString(), reasoning.toString())
                     }
                     is StreamEvent.Error -> {
+                        finished = true
                         if (content.isEmpty()) {
                             runOnce(model, history, asstId)
                         } else {
@@ -314,13 +304,57 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
                                 error = ev.message,
                             )
                             _ui.update { it.copy(sending = false) }
-            persistSession()
+                            persistSession()
                         }
                     }
                 }
             }
+            if (!finished) {
+                if (content.isNotEmpty() || reasoning.isNotEmpty()) {
+                    finalizeAssistant(asstId, content.toString(), reasoning.toString())
+                } else {
+                    runOnce(model, history, asstId)
+                }
+            }
         } catch (e: Exception) {
-            runOnce(model, history, asstId)
+            if (content.isEmpty()) {
+                runOnce(model, history, asstId)
+            } else {
+                patchAssistant(asstId, content.toString(), reasoning.toString(), false, e.message)
+                _ui.update { it.copy(sending = false) }
+                persistSession()
+            }
+        }
+    }
+
+    private fun finalizeAssistant(asstId: String, rawContent: String, rawReasoning: String) {
+        try {
+            val parts = BridgeContent.prepare(rawContent)
+            val body = parts.body
+            val thinkFromTags = Regex("(?s)<think>(.*?)</think>")
+                .findAll(rawContent)
+                .joinToString("\n") { it.groupValues[1] }
+            val finalReasoning = rawReasoning.ifBlank { thinkFromTags }
+            _ui.update { st ->
+                st.copy(
+                    sending = false,
+                    turns = st.turns.map {
+                        if (it.id == asstId) it.copy(
+                            content = body.ifBlank { rawContent }.ifBlank { "(empty response)" },
+                            reasoning = finalReasoning.trim(),
+                            isStreaming = false,
+                            sourcesJson = parts.sources.joinToString("\n") { s ->
+                                "${s.index}|${s.title}|${s.url}"
+                            },
+                        ) else it
+                    },
+                )
+            }
+            persistSession()
+        } catch (e: Exception) {
+            patchAssistant(asstId, rawContent.ifBlank { "(error)" }, rawReasoning, false, e.message)
+            _ui.update { it.copy(sending = false) }
+            persistSession()
         }
     }
 

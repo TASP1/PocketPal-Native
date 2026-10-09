@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+    <!-- ngrok / cloudflare free tunnels use system CAs -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">ngrok-free.dev</domain>
+        <domain includeSubdomains="true">trycloudflare.com</domain>
+        <domain includeSubdomains="true">onrender.com</domain>
+    </domain-config>
+</network-security-config>

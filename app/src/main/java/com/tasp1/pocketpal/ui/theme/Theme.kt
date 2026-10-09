@@ -47,7 +47,7 @@ private val DarkScheme = darkColorScheme(
     background = PpDark.Background, onBackground = PpDark.OnBackground,
     surface = PpDark.Surface, onSurface = PpDark.OnSurface,
     surfaceVariant = PpDark.SurfaceVariant, onSurfaceVariant = PpDark.OnSurfaceVariant,
-    outline = PpDark.Outline,
+    outline = PpDark.Outline, outlineVariant = PpDark.OutlineVariant,
 )
 
 @Composable
