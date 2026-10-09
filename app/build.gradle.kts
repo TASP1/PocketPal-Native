@@ -12,8 +12,8 @@ android {
         applicationId = "com.tasp1.pocketpal"
         minSdk = 26
         targetSdk = 35
-        versionCode = 12
-        versionName = "1.9.2-compose"
+        versionCode = 13
+        versionName = "1.9.3-stable"
         buildConfigField("String", "BRIDGE_URL", "\"https://scrubbed-calcium-subscript.ngrok-free.dev\"")
         buildConfigField("String", "BRIDGE_KEY", "\"28f53fa45b3c222cc2b1cac6795b6ae1\"")
         // Render-hosted agent / gh-cli MCP (shell). Free tier may cold-start.

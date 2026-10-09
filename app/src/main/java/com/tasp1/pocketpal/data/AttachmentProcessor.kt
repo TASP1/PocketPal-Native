@@ -26,6 +26,10 @@ class AttachmentProcessor(private val context: Context) {
 
     enum class VisionQuality { High, Balanced, Low }
 
+    companion object {
+        private const val MAX_JPEG_BYTES = 1_500_000 // ~1.5MB base64 payload cap
+    }
+
     suspend fun fromUri(
         uri: Uri,
         quality: VisionQuality = VisionQuality.High,
@@ -62,7 +66,8 @@ class AttachmentProcessor(private val context: Context) {
             val jpeg = toJpeg(scaled, q)
             // Free large originals
             if (scaled !== bmp) bmp.recycle()
-            dataUrl = "data:image/jpeg;base64," + Base64.encodeToString(jpeg, Base64.NO_WRAP)
+            val bytes = if (jpeg.size > MAX_JPEG_BYTES) jpeg.copyOf(MAX_JPEG_BYTES) else jpeg
+            dataUrl = "data:image/jpeg;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP)
             if (runOcr) {
                 ocr = runCatching { recognizeText(uri, scaled) }.getOrNull()
             }

@@ -15,6 +15,12 @@ import com.tasp1.pocketpal.network.BridgeClient
 import com.tasp1.pocketpal.protocol.ModelFlags
 import com.tasp1.pocketpal.protocol.StreamEvent
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.plus
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
@@ -213,8 +219,29 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
         }
 
         val historyMsgs = buildHistoryMsgs(userText, images)
-        streamJob = viewModelScope.launch {
-            streamOrOnce(model, historyMsgs, asstId)
+        val handler = CoroutineExceptionHandler { _, e ->
+            android.util.Log.e("ChatVM", "uncaught send", e)
+            _ui.update { st ->
+                st.copy(
+                    sending = false,
+                    turns = st.turns.map {
+                        if (it.id == asstId) it.copy(
+                            isStreaming = false,
+                            error = e.message ?: "send failed",
+                            content = it.content.ifBlank { "(failed)" },
+                        ) else it
+                    },
+                )
+            }
+        }
+        streamJob = viewModelScope.launch(handler) {
+            try {
+                streamOrOnce(model, historyMsgs, asstId)
+            } catch (e: Exception) {
+                android.util.Log.e("ChatVM", "send catch", e)
+                patchAssistant(asstId, "", "", false, e.message)
+                _ui.update { it.copy(sending = false) }
+            }
         }
     }
 
@@ -276,39 +303,42 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
         val reasoning = StringBuilder()
         var finished = false
         try {
-            container.engines.active.stream(model, history).collect { ev ->
-                when (ev) {
-                    is StreamEvent.ContentDelta -> {
-                        content.append(ev.text)
-                        patchAssistant(asstId, content.toString(), reasoning.toString(), true)
-                    }
-                    is StreamEvent.ReasoningDelta -> {
-                        reasoning.append(ev.text)
-                        patchAssistant(asstId, content.toString(), reasoning.toString(), true)
-                    }
-                    is StreamEvent.SearchProgress -> { }
-                    is StreamEvent.Done -> {
-                        finished = true
-                        finalizeAssistant(asstId, content.toString(), reasoning.toString())
-                    }
-                    is StreamEvent.Error -> {
-                        finished = true
-                        if (content.isEmpty()) {
-                            runOnce(model, history, asstId)
-                        } else {
-                            patchAssistant(
-                                asstId,
-                                content.toString(),
-                                reasoning.toString(),
-                                streaming = false,
-                                error = ev.message,
-                            )
-                            _ui.update { it.copy(sending = false) }
-                            persistSession()
+            // Prefer streaming; fall back to one-shot on any failure
+            container.engines.active.stream(model, history)
+                .flowOn(Dispatchers.IO)
+                .collect { ev ->
+                    when (ev) {
+                        is StreamEvent.ContentDelta -> {
+                            content.append(ev.text)
+                            patchAssistant(asstId, content.toString(), reasoning.toString(), true)
+                        }
+                        is StreamEvent.ReasoningDelta -> {
+                            reasoning.append(ev.text)
+                            patchAssistant(asstId, content.toString(), reasoning.toString(), true)
+                        }
+                        is StreamEvent.SearchProgress -> { /* ignore for stability */ }
+                        is StreamEvent.Done -> {
+                            finished = true
+                            finalizeAssistant(asstId, content.toString(), reasoning.toString())
+                        }
+                        is StreamEvent.Error -> {
+                            finished = true
+                            if (content.isEmpty()) {
+                                runOnce(model, history, asstId)
+                            } else {
+                                patchAssistant(
+                                    asstId,
+                                    content.toString(),
+                                    reasoning.toString(),
+                                    streaming = false,
+                                    error = ev.message,
+                                )
+                                _ui.update { it.copy(sending = false) }
+                                persistSession()
+                            }
                         }
                     }
                 }
-            }
             if (!finished) {
                 if (content.isNotEmpty() || reasoning.isNotEmpty()) {
                     finalizeAssistant(asstId, content.toString(), reasoning.toString())
@@ -317,6 +347,7 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
                 }
             }
         } catch (e: Exception) {
+            android.util.Log.e("ChatVM", "stream failed", e)
             if (content.isEmpty()) {
                 runOnce(model, history, asstId)
             } else {
@@ -329,11 +360,14 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
 
     private fun finalizeAssistant(asstId: String, rawContent: String, rawReasoning: String) {
         try {
-            val parts = BridgeContent.prepare(rawContent)
+            val parts = runCatching { BridgeContent.prepare(rawContent) }
+                .getOrElse { com.tasp1.pocketpal.data.BridgeContentParts(rawContent, emptyList()) }
             val body = parts.body
-            val thinkFromTags = Regex("(?s)<think>(.*?)</think>")
-                .findAll(rawContent)
-                .joinToString("\n") { it.groupValues[1] }
+            val thinkFromTags = runCatching {
+                Regex("(?s)<think>(.*?)</think>")
+                    .findAll(rawContent)
+                    .joinToString("\n") { it.groupValues[1] }
+            }.getOrDefault("")
             val finalReasoning = rawReasoning.ifBlank { thinkFromTags }
             _ui.update { st ->
                 st.copy(
@@ -346,12 +380,14 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
                             sourcesJson = parts.sources.joinToString("\n") { s ->
                                 "${s.index}|${s.title}|${s.url}"
                             },
+                            error = null,
                         ) else it
                     },
                 )
             }
             persistSession()
         } catch (e: Exception) {
+            android.util.Log.e("ChatVM", "finalize failed", e)
             patchAssistant(asstId, rawContent.ifBlank { "(error)" }, rawReasoning, false, e.message)
             _ui.update { it.copy(sending = false) }
             persistSession()
@@ -409,16 +445,20 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     private fun persistSession() {
-        val st = _ui.value
-        val id = currentSessionId.ifBlank { container.sessions.newSessionId().also { currentSessionId = it } }
-        val sess = ChatSession(
-            id = id,
-            title = st.title,
-            updatedAt = System.currentTimeMillis(),
-            modelId = modelId(),
-        )
         viewModelScope.launch {
-            runCatching { container.sessions.save(sess, st.turns.filter { !it.isStreaming }) }
+            runCatching {
+                val st = _ui.value
+                val id = currentSessionId.ifBlank {
+                    container.sessions.newSessionId().also { currentSessionId = it }
+                }
+                val sess = ChatSession(
+                    id = id,
+                    title = st.title.ifBlank { "Chat" },
+                    updatedAt = System.currentTimeMillis(),
+                    modelId = runCatching { modelId() }.getOrDefault(st.baseModel),
+                )
+                container.sessions.save(sess, st.turns.filter { !it.isStreaming })
+            }.onFailure { android.util.Log.w("ChatVM", "persist failed", it) }
         }
     }
 

@@ -30,7 +30,6 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.tasp1.pocketpal.data.BridgeContent
 import com.tasp1.pocketpal.data.BridgeSource
-import com.tasp1.pocketpal.data.BridgeContentParts
 import com.tasp1.pocketpal.domain.ChatTurn
 import com.tasp1.pocketpal.ui.components.claude.MessageActionBar
 import com.tasp1.pocketpal.ui.components.claude.ThinkingBlock
@@ -42,20 +41,25 @@ fun ChatBubble(turn: ChatTurn, modifier: Modifier = Modifier) {
     val isUser = turn.role == ChatTurn.Role.User
     val extra = LocalPpExtra.current
     val body = turn.content
-    val sources = remember(turn.sourcesJson, body) {
-        if (turn.sourcesJson.isNotBlank()) {
-            turn.sourcesJson.lines().mapNotNull { line ->
-                val p = line.split("|")
-                if (p.size >= 3) BridgeSource(p[0].toIntOrNull() ?: 0, p[1], p[2]) else null
-            }
-        } else {
-            BridgeContent.prepare(body).sources
+    val prepared = remember(turn.sourcesJson, body) {
+        runCatching {
+            val base = BridgeContent.prepare(body)
+            if (turn.sourcesJson.isNotBlank()) {
+                val srcs = turn.sourcesJson.lines().mapNotNull { line ->
+                    val p = line.split("|")
+                    if (p.size >= 3) BridgeSource(p[0].toIntOrNull() ?: 0, p[1], p[2]) else null
+                }
+                if (srcs.isNotEmpty()) base.copy(sources = srcs) else base
+            } else base
+        }.getOrElse {
+            com.tasp1.pocketpal.data.BridgeContentParts(body, emptyList())
         }
     }
-    val displayBody = remember(body) { BridgeContent.prepare(body).body }
+    val sources = prepared.sources
+    val displayBody = prepared.body
 
     Column(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp),
         horizontalAlignment = if (isUser) Alignment.End else Alignment.Start,
     ) {
         Column(
@@ -65,7 +69,7 @@ fun ChatBubble(turn: ChatTurn, modifier: Modifier = Modifier) {
                     if (isUser) Modifier
                         .clip(RoundedCornerShape(18.dp))
                         .background(extra.userBubble)
-                    else Modifier
+                    else Modifier,
                 )
                 .padding(horizontal = if (isUser) 14.dp else 4.dp, vertical = 10.dp),
         ) {
@@ -76,14 +80,15 @@ fun ChatBubble(turn: ChatTurn, modifier: Modifier = Modifier) {
                         .padding(bottom = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    turn.imageDataUrls.forEach { url ->
+                    turn.imageDataUrls.take(4).forEach { url ->
+                        // Cap decode size — huge data URLs can OOM
                         AsyncImage(
                             model = url,
                             contentDescription = null,
                             contentScale = ContentScale.Crop,
                             modifier = Modifier
-                                .width(160.dp)
-                                .heightIn(max = 200.dp)
+                                .width(120.dp)
+                                .heightIn(max = 160.dp)
                                 .clip(RoundedCornerShape(12.dp)),
                         )
                     }
@@ -124,10 +129,14 @@ fun ChatBubble(turn: ChatTurn, modifier: Modifier = Modifier) {
                         color = MaterialTheme.colorScheme.onBackground,
                     )
                 } else {
-                    SelectionContainer {
-                        MarkdownText(text = displayBody)
-                    }
+                    MarkdownText(text = displayBody)
                 }
+            } else if (turn.isStreaming && !isUser) {
+                Text(
+                    "…",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 16.sp,
+                )
             }
             if (turn.error != null) {
                 Text(
@@ -144,8 +153,10 @@ fun ChatBubble(turn: ChatTurn, modifier: Modifier = Modifier) {
                 val ctx = LocalContext.current
                 MessageActionBar(
                     onCopy = {
-                        val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                        cm.setPrimaryClip(ClipData.newPlainText("assistant", displayBody))
+                        runCatching {
+                            val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                            cm.setPrimaryClip(ClipData.newPlainText("assistant", displayBody))
+                        }
                     },
                 )
             }

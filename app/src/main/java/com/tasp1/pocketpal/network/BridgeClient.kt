@@ -47,6 +47,7 @@ class BridgeClient(
             .url("${baseUrl.trimEnd('/')}$path")
             .header("Authorization", "Bearer $apiKey")
             .header("Accept", "application/json")
+            .header("ngrok-skip-browser-warning", "1")
 
     suspend fun health(): HealthStatus = withContext(Dispatchers.IO) {
         val req = Request.Builder().url("${baseUrl.trimEnd('/')}/health").get().build()
