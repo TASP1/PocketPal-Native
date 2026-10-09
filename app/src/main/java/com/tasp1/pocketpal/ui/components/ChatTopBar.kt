@@ -1,5 +1,6 @@
 package com.tasp1.pocketpal.ui.components
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -41,6 +42,7 @@ fun ChatTopBar(
     onShare: () -> Unit = {},
 ) {
     var menuOpen by remember { mutableStateOf(false) }
+
     TopAppBar(
         title = {
             Column {
@@ -53,7 +55,7 @@ fun ChatTopBar(
                 )
                 if (modelId.isNotBlank()) {
                     Text(
-                        modelId.take(48),
+                        modelId.take(52),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
@@ -71,35 +73,46 @@ fun ChatTopBar(
             IconButton(onClick = onNewChat) {
                 Icon(Icons.Default.Add, contentDescription = "New chat")
             }
-            IconButton(onClick = { menuOpen = true }) {
-                Icon(Icons.Default.MoreVert, contentDescription = "More")
-            }
-            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                DropdownMenuItem(
-                    text = { Text("Share") },
-                    onClick = { menuOpen = false; onShare() },
-                    leadingIcon = { Icon(Icons.Outlined.Share, null) },
-                )
-                DropdownMenuItem(
-                    text = { Text("Rename") },
-                    onClick = { menuOpen = false; onRename() },
-                    leadingIcon = { Icon(Icons.Outlined.Edit, null) },
-                )
-                DropdownMenuItem(
-                    text = { Text("Pin") },
-                    onClick = { menuOpen = false },
-                    leadingIcon = { Icon(Icons.Outlined.PushPin, null) },
-                )
-                DropdownMenuItem(
-                    text = { Text("Add to home") },
-                    onClick = { menuOpen = false },
-                    leadingIcon = { Icon(Icons.Outlined.Home, null) },
-                )
-                DropdownMenuItem(
-                    text = { Text("Delete", color = Color(0xFFD1433B)) },
-                    onClick = { menuOpen = false; onDeleteChat() },
-                    leadingIcon = { Icon(Icons.Outlined.Delete, null, tint = Color(0xFFD1433B)) },
-                )
+            Box {
+                IconButton(onClick = { menuOpen = true }) {
+                    Icon(Icons.Default.MoreVert, contentDescription = "More")
+                }
+                DropdownMenu(
+                    expanded = menuOpen,
+                    onDismissRequest = { menuOpen = false },
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Share") },
+                        onClick = { menuOpen = false; onShare() },
+                        leadingIcon = { Icon(Icons.Outlined.Share, contentDescription = null) },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Rename") },
+                        onClick = { menuOpen = false; onRename() },
+                        leadingIcon = { Icon(Icons.Outlined.Edit, contentDescription = null) },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Pin") },
+                        onClick = { menuOpen = false },
+                        leadingIcon = { Icon(Icons.Outlined.PushPin, contentDescription = null) },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Add to home") },
+                        onClick = { menuOpen = false },
+                        leadingIcon = { Icon(Icons.Outlined.Home, contentDescription = null) },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Delete", color = Color(0xFFD1433B)) },
+                        onClick = { menuOpen = false; onDeleteChat() },
+                        leadingIcon = {
+                            Icon(
+                                Icons.Outlined.Delete,
+                                contentDescription = null,
+                                tint = Color(0xFFD1433B),
+                            )
+                        },
+                    )
+                }
             }
         },
         colors = TopAppBarDefaults.topAppBarColors(

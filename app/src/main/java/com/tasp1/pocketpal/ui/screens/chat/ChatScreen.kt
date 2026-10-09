@@ -103,9 +103,8 @@ fun ChatScreen(onOpenDrawer: () -> Unit) {
                 title = state.title,
                 modelId = modelLabel + (healthHint?.let { " · $it" } ?: ""),
                 onMenu = onOpenDrawer,
-                onNewChat = vm::newChat,
+                onNewChat = { vm.newChat() },
                 onDeleteChat = { vm.deleteCurrentChat() },
-                onShare = { /* system share later */ },
             )
         },
         snackbarHost = { SnackbarHost(snack) },

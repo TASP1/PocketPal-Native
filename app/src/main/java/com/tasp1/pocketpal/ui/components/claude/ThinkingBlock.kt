@@ -26,27 +26,31 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/**
- * Claude-style collapsible thinking panel — "Thinking…" while streaming, then "Thoughts".
- */
+/** Claude-style collapsible thinking — no raw tags in the main answer. */
 @Composable
 fun ThinkingBlock(
     text: String,
     streaming: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    if (text.isBlank()) return
+    val cleaned = remember(text) {
+        text
+            .replace("**", "")
+            .replace(Regex("(?i)</?" + "think" + ">"), "")
+            .trim()
+    }
+    if (cleaned.isBlank()) return
+
     var expanded by remember { mutableStateOf(streaming) }
-    // Auto-expand while streaming
-    if (streaming && !expanded) expanded = true
+    if (streaming) expanded = true
 
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+            .clip(RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
             .clickable { expanded = !expanded }
-            .padding(12.dp),
+            .padding(horizontal = 14.dp, vertical = 12.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -64,13 +68,13 @@ fun ThinkingBlock(
         }
         AnimatedVisibility(visible = expanded) {
             Text(
-                text.replace(Regex("\*\*"), "").replace(Regex("</?think>", RegexOption.IGNORE_CASE), "").trim(),
+                cleaned,
                 style = MaterialTheme.typography.bodySmall.copy(
                     fontSize = 13.sp,
-                    lineHeight = 18.sp,
+                    lineHeight = 19.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 ),
-                modifier = Modifier.padding(top = 8.dp),
+                modifier = Modifier.padding(top = 10.dp),
             )
         }
     }
