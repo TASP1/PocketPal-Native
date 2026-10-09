@@ -17,6 +17,7 @@ import com.tasp1.pocketpal.network.BridgeClient
 import com.tasp1.pocketpal.protocol.ModelFlags
 import com.tasp1.pocketpal.protocol.StreamEvent
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.plus
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.CoroutineExceptionHandler
@@ -170,10 +171,23 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
             return
         }
 
+        // Never attach :shell for normal chat — shell is only via `$ cmd` / runShell
+        val model = state.flags.copy(shell = false).toModelId(state.baseModel)
         streamJob?.cancel()
+        _ui.update { st ->
+            st.copy(
+                turns = st.turns.map {
+                    when {
+                        it.isStreaming && it.content.isBlank() ->
+                            it.copy(isStreaming = false, content = "")
+                        it.isStreaming -> it.copy(isStreaming = false)
+                        else -> it
+                    }
+                },
+            )
+        }
         val userId = UUID.randomUUID().toString()
         val asstId = UUID.randomUUID().toString()
-        val model = modelId()
 
         val ocrBlocks = pending.mapNotNull { a ->
             a.ocrText?.takeIf { it.isNotBlank() }?.let { ocr ->
@@ -224,27 +238,44 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
 
         val historyMsgs = buildHistoryMsgs(userText, images)
         val handler = CoroutineExceptionHandler { _, e ->
-            CrashGuard.softFail("send.handler", e, "Send failed")
+            if (e is CancellationException) return@CoroutineExceptionHandler
+            android.util.Log.e("ChatVM", "send.handler", e)
             _ui.update { st ->
                 st.copy(
                     sending = false,
                     turns = st.turns.map {
                         if (it.id == asstId) it.copy(
                             isStreaming = false,
-                            error = e.message ?: "send failed",
-                            content = it.content.ifBlank { "(failed)" },
+                            error = (e.message ?: "send failed").take(300),
+                            content = it.content.ifBlank { "" },
                         ) else it
                     },
                 )
             }
             persistSession()
         }
+        // Cancel previous without marking _(stopped)_ — that text is only for user Stop
+        streamJob?.cancel()
         streamJob = viewModelScope.launch(handler) {
             try {
                 streamOrOnce(model, historyMsgs, asstId)
+            } catch (ce: CancellationException) {
+                // previous job cancelled or user stop — leave stopGeneration to set UI if needed
+                _ui.update { st ->
+                    st.copy(
+                        sending = false,
+                        turns = st.turns.map {
+                            if (it.id == asstId && it.isStreaming && it.content.isBlank())
+                                it.copy(isStreaming = false, content = "")
+                            else if (it.id == asstId && it.isStreaming)
+                                it.copy(isStreaming = false)
+                            else it
+                        },
+                    )
+                }
             } catch (t: Throwable) {
-                CrashGuard.softFail("send.body", t, "Send failed")
-                patchAssistant(asstId, "", "", false, t.message)
+                android.util.Log.e("ChatVM", "send.body", t)
+                patchAssistant(asstId, "", "", false, (t.message ?: "Send failed").take(300))
                 _ui.update { it.copy(sending = false) }
                 persistSession()
             }
@@ -309,14 +340,36 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
         val reasoning = StringBuilder()
         var finished = false
         var lastUiMs = 0L
+
         fun pushUi(force: Boolean = false) {
             val now = System.currentTimeMillis()
-            if (!force && now - lastUiMs < 50) return // throttle recompose
+            if (!force && now - lastUiMs < 80) return
             lastUiMs = now
-            val vis = MessageCleaner.visibleBody(content.toString())
-            val r = MessageCleaner.visibleReasoning(content.toString(), reasoning.toString())
+            val vis = runCatching { MessageCleaner.visibleBody(content.toString()) }.getOrDefault(content.toString())
+            val r = runCatching {
+                MessageCleaner.visibleReasoning(content.toString(), reasoning.toString())
+            }.getOrDefault(reasoning.toString())
             patchAssistant(asstId, vis, r, true)
         }
+
+        // 1) Prefer non-stream complete — reliable on mobile networks
+        try {
+            val raw = container.engines.active.complete(model, history)
+            if (raw.isNotBlank() && !raw.startsWith("[Error") && !raw.startsWith("[Local]")) {
+                finalizeAssistant(asstId, raw, "")
+                return
+            }
+            // fall through to stream if empty/error response
+            if (raw.startsWith("[Error")) {
+                android.util.Log.w("ChatVM", "complete error: $raw")
+            }
+        } catch (ce: CancellationException) {
+            throw ce
+        } catch (t: Throwable) {
+            android.util.Log.w("ChatVM", "complete failed, trying stream", t)
+        }
+
+        // 2) Streaming fallback
         try {
             container.engines.active.stream(model, history)
                 .flowOn(Dispatchers.IO)
@@ -333,31 +386,30 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
                             }
                             is StreamEvent.SearchProgress -> {
                                 val msg = ev.text.trim()
-                                if (msg.isNotBlank()) {
-                                    _ui.update { st ->
-                                        st.copy(
-                                            turns = st.turns.map { turn ->
-                                                if (turn.id != asstId) turn
-                                                else {
-                                                    val steps = turn.toolSteps.toMutableList()
-                                                    val last = steps.lastOrNull()
-                                                    if (last != null && !last.done &&
-                                                        last.kind == com.tasp1.pocketpal.domain.ToolStep.Kind.Search
-                                                    ) {
-                                                        steps[steps.lastIndex] = last.copy(title = msg.take(80))
-                                                    } else {
-                                                        steps += com.tasp1.pocketpal.domain.ToolStep(
-                                                            id = java.util.UUID.randomUUID().toString(),
-                                                            title = msg.take(80),
-                                                            kind = com.tasp1.pocketpal.domain.ToolStep.Kind.Search,
-                                                            done = false,
-                                                        )
-                                                    }
-                                                    turn.copy(toolSteps = steps)
+                                if (msg.isBlank()) return@collect
+                                _ui.update { st ->
+                                    st.copy(
+                                        turns = st.turns.map { turn ->
+                                            if (turn.id != asstId) turn
+                                            else {
+                                                val steps = turn.toolSteps.toMutableList()
+                                                val last = steps.lastOrNull()
+                                                if (last != null && !last.done &&
+                                                    last.kind == com.tasp1.pocketpal.domain.ToolStep.Kind.Search
+                                                ) {
+                                                    steps[steps.lastIndex] = last.copy(title = msg.take(80))
+                                                } else {
+                                                    steps += com.tasp1.pocketpal.domain.ToolStep(
+                                                        id = java.util.UUID.randomUUID().toString(),
+                                                        title = msg.take(80),
+                                                        kind = com.tasp1.pocketpal.domain.ToolStep.Kind.Search,
+                                                        done = false,
+                                                    )
                                                 }
-                                            },
-                                        )
-                                    }
+                                                turn.copy(toolSteps = steps)
+                                            }
+                                        },
+                                    )
                                 }
                             }
                             is StreamEvent.Done -> {
@@ -368,44 +420,48 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
                             is StreamEvent.Error -> {
                                 finished = true
                                 if (content.isEmpty()) {
-                                    runOnce(model, history, asstId)
-                                } else {
-                                    pushUi(force = true)
+                                    // last resort complete already tried — show error in bubble
                                     patchAssistant(
                                         asstId,
-                                        MessageCleaner.visibleBody(content.toString()),
-                                        MessageCleaner.visibleReasoning(content.toString(), reasoning.toString()),
+                                        "",
+                                        "",
                                         false,
-                                        error = ev.message,
+                                        error = ev.message.take(300),
                                     )
                                     _ui.update { it.copy(sending = false) }
                                     persistSession()
+                                } else {
+                                    finalizeAssistant(asstId, content.toString(), reasoning.toString())
                                 }
                             }
                         }
+                    } catch (ce: CancellationException) {
+                        throw ce
                     } catch (t: Throwable) {
-                        CrashGuard.softFail("stream.event", t)
+                        // Log only — never toast spam mid-stream
+                        android.util.Log.e("ChatVM", "stream.event", t)
                     }
                 }
             if (!finished) {
                 if (content.isNotEmpty() || reasoning.isNotEmpty()) {
                     finalizeAssistant(asstId, content.toString(), reasoning.toString())
                 } else {
-                    runOnce(model, history, asstId)
+                    patchAssistant(asstId, "", "", false, error = "No response from server")
+                    _ui.update { it.copy(sending = false) }
+                    persistSession()
                 }
             }
+        } catch (ce: CancellationException) {
+            // User stopped or new message started — do not toast
+            throw ce
         } catch (t: Throwable) {
-            CrashGuard.softFail("streamOrOnce", t, "Message failed — retrying once")
-            if (content.isEmpty()) {
-                try {
-                    runOnce(model, history, asstId)
-                } catch (t2: Throwable) {
-                    CrashGuard.softFail("runOnce.fallback", t2, "Could not get a reply")
-                    patchAssistant(asstId, "", "", false, error = t2.message ?: "failed")
-                    _ui.update { it.copy(sending = false) }
-                }
-            } else {
+            android.util.Log.e("ChatVM", "streamOrOnce failed", t)
+            if (content.isNotEmpty()) {
                 finalizeAssistant(asstId, content.toString(), reasoning.toString())
+            } else {
+                patchAssistant(asstId, "", "", false, error = (t.message ?: "Request failed").take(300))
+                _ui.update { it.copy(sending = false) }
+                persistSession()
             }
         }
     }
@@ -619,7 +675,7 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
             st.copy(
                 sending = false,
                 turns = st.turns.map {
-                    if (it.isStreaming) it.copy(isStreaming = false, content = it.content.ifBlank { "_(stopped)_" })
+                    if (it.isStreaming) it.copy(isStreaming = false, content = it.content.ifBlank { "Stopped" }, error = null)
                     else it
                 },
             )

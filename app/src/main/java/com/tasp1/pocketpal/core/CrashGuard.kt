@@ -43,6 +43,11 @@ object CrashGuard {
         }
     }
 
+    fun logOnly(where: String, t: Throwable) {
+        Log.e(TAG, "logOnly@$where: ${t.message}", t)
+        runCatching { persist(t, where) }
+    }
+
     fun softFail(where: String, t: Throwable, userMessage: String? = null) {
         Log.e(TAG, "softFail@$where: ${t.message}", t)
         runCatching { persist(t, where) }

@@ -320,14 +320,19 @@ class BridgeClient(
                 .build()
             client.newCall(req).execute().use { resp ->
                 val body = resp.body?.string().orEmpty()
-                if (!resp.isSuccessful) error("HTTP ${resp.code}: ${body.take(400)}")
-                JSONObject(body)
-                    .optJSONArray("choices")
-                    ?.optJSONObject(0)
-                    ?.optJSONObject("message")
-                    ?.optString("content")
-                    ?: body
+                if (!resp.isSuccessful) {
+                    return@withContext "[Error ${resp.code}] ${body.take(400)}"
+                }
+                runCatching {
+                    JSONObject(body)
+                        .optJSONArray("choices")
+                        ?.optJSONObject(0)
+                        ?.optJSONObject("message")
+                        ?.optString("content")
+                        ?.takeIf { it.isNotBlank() }
+                }.getOrNull() ?: body
             }
         }
 }
+
 
